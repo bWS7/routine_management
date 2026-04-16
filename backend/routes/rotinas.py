@@ -106,15 +106,7 @@ def listar():
         if usuario_id:
             query = query.filter(Rotina.usuario_id == usuario_id)
     elif me.perfil == 'gv':
-        if usuario_id and usuario_id != me.id:
-            # GV pode ver subordinados diretos
-            subordinado = Usuario.query.get(usuario_id)
-            if not subordinado or subordinado.supervisor_id != me.id:
-                query = query.filter(Rotina.usuario_id == me.id)
-            else:
-                query = query.filter(Rotina.usuario_id == usuario_id)
-        else:
-            query = query.filter(Rotina.usuario_id == me.id)
+        query = query.filter(Rotina.usuario_id == me.id)
     else:
         query = query.filter(Rotina.usuario_id == me.id)
 
@@ -187,6 +179,9 @@ def atualizar(rid):
 def dashboard():
     me = get_current_user()
 
+    if me.perfil not in ['admin', 'sr']:
+        return jsonify({'erro': 'Acesso negado'}), 403
+
     regional_id = request.args.get('regional_id', type=int)
     usuario_id = request.args.get('usuario_id', type=int)
     periodo = request.args.get('periodo', 'semanal')
@@ -203,11 +198,9 @@ def dashboard():
 
     if me.perfil == 'sr':
         query = query.filter(Usuario.regional_id == me.regional_id)
-    elif me.perfil not in ['admin']:
-        query = query.filter(Rotina.usuario_id == me.id)
-
-    if regional_id and me.perfil == 'admin':
+    elif regional_id:
         query = query.filter(Usuario.regional_id == regional_id)
+
     if usuario_id and me.perfil in ['admin', 'sr']:
         query = query.filter(Rotina.usuario_id == usuario_id)
 
@@ -235,14 +228,34 @@ def dashboard():
         c = por_perfil[p]['concluidas']
         por_perfil[p]['percentual'] = round(c / t * 100, 1) if t > 0 else 0
 
+    usuarios_query = Usuario.query.filter_by(status='ativo')
+    if me.perfil == 'sr':
+        usuarios_query = usuarios_query.filter_by(regional_id=me.regional_id)
+    elif regional_id:
+        usuarios_query = usuarios_query.filter_by(regional_id=regional_id)
+    if usuario_id:
+        usuarios_query = usuarios_query.filter_by(id=usuario_id)
+
     # Por usuário (ranking)
-    por_usuario = {}
+    por_usuario = {
+        u.id: {
+            'nome': u.nome,
+            'regional': u.regional.nome if u.regional else 'N/A',
+            'total': 0,
+            'concluidas': 0
+        }
+        for u in usuarios_query.order_by(Usuario.nome).all()
+    }
+
     for r in rotinas:
         uid = r.usuario_id
-        nome = r.usuario.nome if r.usuario else 'N/A'
-        reg = r.usuario.regional.nome if r.usuario and r.usuario.regional else 'N/A'
         if uid not in por_usuario:
-            por_usuario[uid] = {'nome': nome, 'regional': reg, 'total': 0, 'concluidas': 0}
+            por_usuario[uid] = {
+                'nome': r.usuario.nome if r.usuario else 'N/A',
+                'regional': r.usuario.regional.nome if r.usuario and r.usuario.regional else 'N/A',
+                'total': 0,
+                'concluidas': 0
+            }
         por_usuario[uid]['total'] += 1
         if r.status == 'concluida':
             por_usuario[uid]['concluidas'] += 1

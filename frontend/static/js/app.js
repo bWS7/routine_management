@@ -56,7 +56,7 @@ function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.querySelector('.app-layout').classList.add('visible');
   renderSidebar();
-  navigate('dashboard');
+  navigate(['admin', 'sr'].includes(currentUser?.perfil) ? 'dashboard' : 'rotinas');
 }
 
 function toggleSidebar() {
@@ -71,6 +71,12 @@ function closeSidebar() {
 }
 
 function navigate(page) {
+  if (page === 'dashboard' && !['admin', 'sr'].includes(currentUser?.perfil)) {
+    page = 'rotinas';
+  }
+  if (page === 'acompanhamento' && !['admin', 'sr'].includes(currentUser?.perfil)) {
+    page = 'rotinas';
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
   const pageEl = document.getElementById(`page-${page}`);
@@ -120,15 +126,16 @@ function renderSidebar() {
 
   const nav = document.getElementById('sidebar-nav');
   const isAdmin = u.perfil === 'admin';
-  const isSr = u.perfil === 'sr' || isAdmin;
-  const isGestor = ['sr', 'gv', 'admin'].includes(u.perfil);
+  const canViewDashboard = ['admin', 'sr'].includes(u.perfil);
+  const canViewTeam = ['admin', 'sr'].includes(u.perfil);
 
   let html = `
     <div class="nav-section">
       <div class="nav-section-label">Principal</div>
+      ${canViewDashboard ? `
       <button class="nav-link" data-page="dashboard" onclick="navigate('dashboard')">
         Dashboard
-      </button>
+      </button>` : ''}
       <button class="nav-link" data-page="rotinas" onclick="navigate('rotinas')">
         Minhas Rotinas
       </button>
@@ -137,7 +144,7 @@ function renderSidebar() {
       </button>
     </div>`;
 
-  if (isGestor) {
+  if (canViewTeam) {
     html += `
     <div class="nav-section">
       <div class="nav-section-label">Gestão</div>
