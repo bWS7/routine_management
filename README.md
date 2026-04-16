@@ -60,11 +60,10 @@ Após o primeiro deploy, o sistema cria automaticamente:
 | Perfil | Descrição | Visibilidade |
 |--------|-----------|--------------|
 | `admin` | Administrador total | Tudo |
-| `sr` | Superintendente Regional | Regional completa |
+| `sr` | Superintendente | Regional completa |
 | `gv` | Gerente de Vendas | Próprias atividades + time |
-| `cd` | Coordenador de Empreendimento | Próprias atividades |
-| `sp` | Supervisor de Parcerias | Próprias atividades |
-| `visualizador` | Somente leitura | Escopo autorizado |
+| `cd` | Coordenador de Produto | Próprias atividades |
+| `sp` | Supervisor de Parceria | Próprias atividades |
 
 ---
 

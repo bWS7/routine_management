@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.models import Usuario
+from backend.constants import PERFIS_USUARIO
 from backend.extensions import db
 
 usuarios_bp = Blueprint('usuarios', __name__)
@@ -60,6 +61,10 @@ def criar():
 
     data = request.get_json()
     email = data.get('email', '').strip().lower()
+    perfil = data.get('perfil')
+
+    if perfil not in PERFIS_USUARIO:
+        return jsonify({'erro': 'Perfil inválido'}), 400
 
     if Usuario.query.filter_by(email=email).first():
         return jsonify({'erro': 'Email já cadastrado'}), 400
@@ -67,7 +72,7 @@ def criar():
     u = Usuario(
         nome=data['nome'],
         email=email,
-        perfil=data['perfil'],
+        perfil=perfil,
         regional_id=data.get('regional_id'),
         supervisor_id=data.get('supervisor_id'),
         status=data.get('status', 'ativo')
@@ -93,6 +98,8 @@ def atualizar(uid):
     if 'email' in data and require_admin(me):
         u.email = data['email'].strip().lower()
     if 'perfil' in data and require_admin(me):
+        if data['perfil'] not in PERFIS_USUARIO:
+            return jsonify({'erro': 'Perfil inválido'}), 400
         u.perfil = data['perfil']
     if 'regional_id' in data and require_admin(me):
         u.regional_id = data['regional_id']

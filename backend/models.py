@@ -28,7 +28,7 @@ class Usuario(db.Model):
     nome = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     senha_hash = db.Column(db.String(255), nullable=False)
-    perfil = db.Column(db.String(50), nullable=False)  # admin, sr, gv, cd, sp, visualizador
+    perfil = db.Column(db.String(50), nullable=False)  # admin, sr, gv, cd, sp
     regional_id = db.Column(db.Integer, db.ForeignKey('regionais.id'), nullable=True)
     supervisor_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     status = db.Column(db.String(20), default='ativo')  # ativo, inativo, bloqueado

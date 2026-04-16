@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from backend.constants import PERFIS_ATIVIDADE
 from backend.models import AtividadeCatalogo, Usuario
 from backend.extensions import db
 
@@ -44,6 +45,8 @@ def criar():
     if me.perfil != 'admin':
         return jsonify({'erro': 'Acesso negado'}), 403
     data = request.get_json()
+    if data.get('perfil') not in PERFIS_ATIVIDADE:
+        return jsonify({'erro': 'Perfil inválido para atividade'}), 400
     a = AtividadeCatalogo(
         nome=data['nome'],
         descricao=data.get('descricao'),
@@ -69,6 +72,8 @@ def atualizar(aid):
         return jsonify({'erro': 'Acesso negado'}), 403
     a = AtividadeCatalogo.query.get_or_404(aid)
     data = request.get_json()
+    if 'perfil' in data and data['perfil'] not in PERFIS_ATIVIDADE:
+        return jsonify({'erro': 'Perfil inválido para atividade'}), 400
     for campo in ['nome', 'descricao', 'periodicidade', 'perfil', 'obrigatoria',
                   'tipo_evidencia', 'indicador', 'prazo_padrao', 'ordem', 'ativo']:
         if campo in data:

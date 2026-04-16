@@ -95,9 +95,11 @@ const PAGE_TITLES = {
 
 // ── PERFIL LABELS ──
 const PERFIL_LABELS = {
-  admin: 'Administrador', sr: 'Sup. Regional',
-  gv: 'Ger. Vendas', cd: 'Coord. Empreend.',
-  sp: 'Sup. Parcerias', visualizador: 'Visualizador'
+  admin: 'Administrador',
+  sr: 'Superintendente',
+  gv: 'Gerente de Vendas',
+  cd: 'Coordenador de Produto',
+  sp: 'Supervisor de Parceria'
 };
 
 const STATUS_LABELS = {
@@ -125,13 +127,13 @@ function renderSidebar() {
     <div class="nav-section">
       <div class="nav-section-label">Principal</div>
       <button class="nav-link" data-page="dashboard" onclick="navigate('dashboard')">
-        <span class="nav-icon">DB</span> Dashboard
+        Dashboard
       </button>
       <button class="nav-link" data-page="rotinas" onclick="navigate('rotinas')">
-        <span class="nav-icon">RT</span> Minhas Rotinas
+        Minhas Rotinas
       </button>
       <button class="nav-link" data-page="pendencias" onclick="navigate('pendencias')">
-        <span class="nav-icon">PE</span> Pendências
+        Pendências
       </button>
     </div>`;
 
@@ -140,7 +142,7 @@ function renderSidebar() {
     <div class="nav-section">
       <div class="nav-section-label">Gestão</div>
       <button class="nav-link" data-page="acompanhamento" onclick="navigate('acompanhamento')">
-        <span class="nav-icon">AC</span> Acompanhamento
+        Acompanhamento
       </button>
     </div>`;
   }
@@ -150,13 +152,13 @@ function renderSidebar() {
     <div class="nav-section">
       <div class="nav-section-label">Administração</div>
       <button class="nav-link" data-page="usuarios" onclick="navigate('usuarios')">
-        <span class="nav-icon">US</span> Usuários
+        Usuários
       </button>
       <button class="nav-link" data-page="regionais" onclick="navigate('regionais')">
-        <span class="nav-icon">RG</span> Regionais
+        Regionais
       </button>
       <button class="nav-link" data-page="atividades" onclick="navigate('atividades')">
-        <span class="nav-icon">AT</span> Catálogo de Atividades
+        Catálogo de Atividades
       </button>
     </div>`;
   }
@@ -806,7 +808,7 @@ async function loadAtividades() {
     <div class="filter-bar">
       <select id="at-perfil" class="form-control form-select" onchange="loadAtividades()" style="width:170px">
         <option value="">Todos os Perfis</option>
-        ${Object.entries(PERFIL_LABELS).filter(([v]) => v !== 'admin' && v !== 'visualizador')
+        ${Object.entries(PERFIL_LABELS).filter(([v]) => v !== 'admin')
           .map(([v,l]) => `<option value="${v}">${l}</option>`).join('')}
       </select>
       <select id="at-periodo" class="form-control form-select" onchange="loadAtividades()" style="width:140px">
