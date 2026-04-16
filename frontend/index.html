@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GC Comercial — Gestão de Rotinas</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="/imagens/logo.png">
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login-screen" style="display:none">
+  <div class="login-wrap">
+    <div class="login-left">
+      <div class="login-brand">
+        <div class="logo-icon">
+          <img src="/imagens/logo.png" alt="GC Comercial">
+        </div>
+        <h1>Gestão<br>Comercial</h1>
+        <p>Sistema de Rotinas Operacionais</p>
+      </div>
+      <div class="login-features">
+        <div class="login-feature">
+          <span class="icon">01</span>
+          <span>Dashboard de execução em tempo real</span>
+        </div>
+        <div class="login-feature">
+          <span class="icon">02</span>
+          <span>Rotinas semanais, quinzenais e mensais</span>
+        </div>
+        <div class="login-feature">
+          <span class="icon">03</span>
+          <span>Acompanhamento hierárquico por regional</span>
+        </div>
+        <div class="login-feature">
+          <span class="icon">04</span>
+          <span>Gestão de pendências e planos de ação</span>
+        </div>
+        <div class="login-feature">
+          <span class="icon">05</span>
+          <span>Ranking de aderência por perfil</span>
+        </div>
+      </div>
+    </div>
+    <div class="login-right">
+      <h2>Bem-vindo</h2>
+      <p class="subtitle">Faça login para acessar sua área de gestão</p>
+
+      <div id="login-error" class="alert alert-error" style="display:none"></div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="login-email" class="form-control" placeholder="seu@email.com.br" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input type="password" id="login-senha" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" id="login-btn" class="btn btn-primary" style="margin-top:.5rem">Entrar</button>
+      </form>
+
+      <p style="margin-top:2rem;font-size:.8rem;color:var(--cinza-light);text-align:center">
+        Acesso restrito a usuários autorizados.<br>
+        Em caso de dúvidas, contate o administrador.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ── APP LAYOUT ── -->
+<div class="app-layout sidebar-collapsed">
+
+  <!-- TOP HEADER -->
+  <header class="topheader">
+    <button class="sidebar-toggle hamburger" type="button" onclick="toggleSidebar()" aria-label="Abrir menu lateral">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="topheader__center">Gestão Comercial</div>
+    <div class="topheader__logo">
+      <img src="/imagens/logo.png" alt="GC Comercial">
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="logo-mark">
+          <img src="/imagens/logo.png" alt="GC Comercial">
+        </div>
+        <div class="logo-text">
+          GC Comercial
+          <small>Rotinas Operacionais</small>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-card">
+        <div class="user-avatar" id="user-avatar">A</div>
+        <div class="user-info">
+          <div class="name" id="user-name">Carregando...</div>
+          <div class="role" id="user-role">—</div>
+        </div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <button class="nav-link" data-page="perfil" onclick="navigate('perfil')">
+        <span class="nav-icon">PF</span> Meu Perfil
+      </button>
+      <button class="nav-link" onclick="logout()">
+        <span class="nav-icon">SA</span> Sair
+      </button>
+    </div>
+  </aside>
+  <div class="drawer-overlay" onclick="closeSidebar()"></div>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-welcome">Painel operacional</div>
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+      </div>
+      <div class="topbar-actions">
+        <span id="topbar-user" style="font-size:.8rem;color:var(--cinza-light)"></span>
+      </div>
+    </header>
+
+    <!-- PAGES -->
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div id="dashboard-content"><div class="spinner"></div></div>
+    </div>
+
+    <!-- ROTINAS -->
+    <div class="page" id="page-rotinas">
+      <div class="card page-intro">
+        <div class="card-body">
+          <p>
+            Clique em qualquer atividade para visualizar detalhes, atualizar o status ou registrar evidências.
+            <strong>Atividades marcadas como obrigatórias</strong> exigem plano de ação em caso de não realização.
+          </p>
+        </div>
+      </div>
+      <div id="rotinas-content"><div class="spinner"></div></div>
+    </div>
+
+    <!-- ACOMPANHAMENTO -->
+    <div class="page" id="page-acompanhamento">
+      <div id="acomp-content"><div class="spinner"></div></div>
+    </div>
+
+    <!-- PENDÊNCIAS -->
+    <div class="page" id="page-pendencias">
+      <div class="card page-intro" style="border-left:3px solid var(--vermelho)">
+        <div class="card-body">
+          <p>
+            <strong>Pendências</strong> são atividades obrigatórias que ultrapassaram o prazo sem conclusão.
+            Todo não-atingimento exige justificativa e plano de ação do responsável.
+          </p>
+        </div>
+      </div>
+      <div id="pendencias-content"><div class="spinner"></div></div>
+    </div>
+
+    <!-- USUÁRIOS -->
+    <div class="page" id="page-usuarios">
+      <div id="usuarios-content"><div class="spinner"></div></div>
+    </div>
+
+    <!-- REGIONAIS -->
+    <div class="page" id="page-regionais">
+      <div id="regionais-content"><div class="spinner"></div></div>
+    </div>
+
+    <!-- ATIVIDADES -->
+    <div class="page" id="page-atividades">
+      <div class="card page-intro">
+        <div class="card-body">
+          <p>
+            O catálogo central define todas as atividades pré-determinadas por cargo.
+            As rotinas são geradas automaticamente a partir deste catálogo.
+          </p>
+        </div>
+      </div>
+      <div id="atividades-content"><div class="spinner"></div></div>
+    </div>
+
+    <!-- PERFIL -->
+    <div class="page" id="page-perfil">
+      <div id="perfil-content"><div class="spinner"></div></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<!-- ── MODALS ── -->
+
+<!-- Rotina Modal -->
+<div class="modal-overlay" id="rotina-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <div class="modal-title" id="rotina-modal-title">Detalhes da Atividade</div>
+      <button class="btn-close" onclick="closeModal('rotina-modal')" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body" id="rotina-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('rotina-modal')">Fechar</button>
+      <button class="btn btn-primary" id="rm-save-btn" onclick="saveRotina()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Usuário Modal -->
+<div class="modal-overlay" id="usuario-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="u-modal-title">Novo Usuário</div>
+      <button class="btn-close" onclick="closeModal('usuario-modal')" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body" id="u-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('usuario-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUsuario()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Regional Modal -->
+<div class="modal-overlay" id="regional-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title" id="reg-modal-title">Nova Regional</div>
+      <button class="btn-close" onclick="closeModal('regional-modal')" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body" id="reg-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('regional-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRegional()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Atividade Modal -->
+<div class="modal-overlay" id="atividade-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="at-modal-title">Nova Atividade</div>
+      <button class="btn-close" onclick="closeModal('atividade-modal')" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body" id="at-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('atividade-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAtividade()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
