@@ -1,6 +1,7 @@
 import os
 from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
+from sqlalchemy import inspect
 from sqlalchemy import text
 from backend.extensions import db, jwt, migrate
 from backend.routes.auth import auth_bp
@@ -107,26 +108,30 @@ def _seed_initial_data():
         db.session.commit()
 
 
+
 def _ensure_runtime_columns():
-    comandos = [
-        "ALTER TABLE rotinas ADD COLUMN IF NOT EXISTS checklist TEXT",
-        "ALTER TABLE rotinas ADD COLUMN IF NOT EXISTS relatorio TEXT",
-        "ALTER TABLE rotinas ADD COLUMN IF NOT EXISTS plano_semana TEXT",
-        "ALTER TABLE rotinas ADD COLUMN IF NOT EXISTS visitas_ativacoes TEXT",
-        "ALTER TABLE rotinas ADD COLUMN IF NOT EXISTS resultados_visita TEXT",
-        "ALTER TABLE rotinas ADD COLUMN IF NOT EXISTS carteira_ativa TEXT",
-        "ALTER TABLE rotinas ADD COLUMN IF NOT EXISTS metas_canal TEXT",
+    insp = inspect(db.engine)
+    tabelas = set(insp.get_table_names())
+    if 'rotinas' not in tabelas:
+        return
+
+    existentes = {col['name'] for col in insp.get_columns('rotinas')}
+    desejadas = [
+        'checklist',
+        'relatorio',
+        'plano_semana',
+        'visitas_ativacoes',
+        'resultados_visita',
+        'carteira_ativa',
+        'metas_canal',
     ]
-    for comando in comandos:
-        db.session.execute(text(comando))
+
+    for coluna in desejadas:
+        if coluna not in existentes:
+            db.session.execute(text(f"ALTER TABLE rotinas ADD COLUMN {coluna} TEXT"))
     db.session.commit()
 
     # Catálogo de atividades
-    if AtividadeCatalogo.query.count() == 0:
-        for item in ATIVIDADES_CATALOGO:
-            a = AtividadeCatalogo(**item)
-            db.session.add(a)
-        db.session.commit()
 
 
 app = create_app()
