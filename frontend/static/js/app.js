@@ -3,6 +3,44 @@ const API = '';
 let currentUser = null;
 let token = localStorage.getItem('gc_token') || null;
 
+const ICONS = {
+  activity: '<path d="M22 12h-4l-3 8L9 4l-3 8H2"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  barChart: '<path d="M3 3v18h18"/><path d="M7 16V9"/><path d="M12 16V5"/><path d="M17 16v-3"/>',
+  calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  clipboard: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  logOut: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  refresh: '<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+  user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+};
+
+function icon(name, extraClass = '') {
+  return `<svg class="icon-svg ${extraClass}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ICONS.activity}</svg>`;
+}
+
+function navItem(page, label, iconName) {
+  return `<button class="nav-link" data-page="${page}" onclick="navigate('${page}')">
+    <span class="nav-icon">${icon(iconName)}</span><span>${label}</span>
+  </button>`;
+}
+
+function actionButton(label, iconName) {
+  return `${icon(iconName)}<span>${label}</span>`;
+}
+
 // ── AUTH ──
 async function apiFetch(path, opts = {}) {
   const isFormData = opts.body instanceof FormData;
@@ -160,7 +198,7 @@ function renderSidebar() {
   document.getElementById('user-name').textContent = u.nome;
   document.getElementById('user-role').textContent = PERFIL_LABELS[u.perfil] || u.perfil;
   document.getElementById('user-avatar').textContent = u.nome.charAt(0).toUpperCase();
-  document.getElementById('topbar-user').textContent = `${u.nome} · ${PERFIL_LABELS[u.perfil] || u.perfil}`;
+  document.getElementById('topbar-user').innerHTML = `${icon('user')}<span>${u.nome} - ${PERFIL_LABELS[u.perfil] || u.perfil}</span>`;
 
   const nav = document.getElementById('sidebar-nav');
   const isAdmin = u.perfil === 'admin';
@@ -170,25 +208,16 @@ function renderSidebar() {
   let html = `
     <div class="nav-section">
       <div class="nav-section-label">Principal</div>
-      ${canViewDashboard ? `
-      <button class="nav-link" data-page="dashboard" onclick="navigate('dashboard')">
-        Dashboard
-      </button>` : ''}
-      <button class="nav-link" data-page="rotinas" onclick="navigate('rotinas')">
-        Minhas Rotinas
-      </button>
-      <button class="nav-link" data-page="pendencias" onclick="navigate('pendencias')">
-        Pendências
-      </button>
+      ${canViewDashboard ? navItem('dashboard', 'Dashboard', 'barChart') : ''}
+      ${navItem('rotinas', 'Minhas Rotinas', 'clipboard')}
+      ${navItem('pendencias', 'Pendências', 'alert')}
     </div>`;
 
   if (canViewTeam) {
     html += `
     <div class="nav-section">
       <div class="nav-section-label">Gestão</div>
-      <button class="nav-link" data-page="acompanhamento" onclick="navigate('acompanhamento')">
-        Acompanhamento
-      </button>
+      ${navItem('acompanhamento', 'Acompanhamento', 'users')}
     </div>`;
   }
 
@@ -196,18 +225,10 @@ function renderSidebar() {
     html += `
     <div class="nav-section">
       <div class="nav-section-label">Administração</div>
-      <button class="nav-link" data-page="usuarios" onclick="navigate('usuarios')">
-        Usuários
-      </button>
-      <button class="nav-link" data-page="regionais" onclick="navigate('regionais')">
-        Regionais
-      </button>
-      <button class="nav-link" data-page="atividades" onclick="navigate('atividades')">
-        Catálogo de Atividades
-      </button>
-      <button class="nav-link" data-page="auditoria" onclick="navigate('auditoria')">
-        Auditoria
-      </button>
+      ${navItem('usuarios', 'Usuários', 'user')}
+      ${navItem('regionais', 'Regionais', 'archive')}
+      ${navItem('atividades', 'Catálogo de Atividades', 'activity')}
+      ${navItem('auditoria', 'Auditoria', 'shield')}
     </div>`;
   }
 
@@ -256,7 +277,7 @@ async function loadDashboard() {
         <option value="mensal" ${periodo==='mensal'?'selected':''}>Mensal</option>
       </select>
       ${regionalFilter}
-      <button class="btn btn-secondary btn-sm" onclick="exportDashboard()">Exportar CSV</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportDashboard()">${actionButton('Exportar CSV', 'download')}</button>
       <span class="text-muted" style="font-size:.8rem">
         ${fmtDate(d.periodo_inicio)} → ${fmtDate(d.periodo_fim)}
       </span>
@@ -267,7 +288,7 @@ async function loadDashboard() {
         <div class="stat-label">% de Execução</div>
         <div class="stat-value">${pct}%</div>
         <div class="stat-sub">${d.concluidas} de ${d.total} atividades</div>
-        <div class="stat-icon">%</div>
+        <div class="stat-icon">${icon('barChart')}</div>
         <div class="progress-bar" style="margin-top:.75rem;background:rgba(255,255,255,.2)">
           <div class="progress-fill" style="width:${pct}%;background:rgba(255,255,255,.8)"></div>
         </div>
@@ -276,19 +297,19 @@ async function loadDashboard() {
         <div class="stat-label">Concluídas</div>
         <div class="stat-value" style="color:#38A169">${d.concluidas}</div>
         <div class="stat-sub">de ${d.total} previstas</div>
-        <div class="stat-icon">OK</div>
+        <div class="stat-icon">${icon('check')}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Não Realizadas</div>
         <div class="stat-value" style="color:var(--vermelho)">${d.nao_realizadas}</div>
         <div class="stat-sub">requerem plano de ação</div>
-        <div class="stat-icon">!</div>
+        <div class="stat-icon">${icon('alert')}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Em Andamento</div>
         <div class="stat-value" style="color:#E65100">${d.em_andamento}</div>
         <div class="stat-sub">+ ${d.nao_iniciadas} não iniciadas</div>
-        <div class="stat-icon">...</div>
+        <div class="stat-icon">${icon('activity')}</div>
       </div>
     </div>
 
@@ -318,7 +339,7 @@ async function loadDashboard() {
       </div>
       <div class="card-body">
         <span class="text-muted" style="font-size:.875rem">Gera automaticamente as atividades para todos os usuários ativos conforme o catálogo.</span>
-        <button class="btn btn-primary btn-sm" style="white-space:nowrap" onclick="gerarRotinas()">Gerar Agora</button>
+        <button class="btn btn-primary btn-sm" style="white-space:nowrap" onclick="gerarRotinas()">${actionButton('Gerar Agora', 'refresh')}</button>
       </div>
     </div>` : ''}
     </div>
@@ -412,7 +433,7 @@ async function loadRotinas() {
         <option value="concluida">Concluída</option>
         <option value="nao_realizada">Não Realizada</option>
       </select>
-      <button class="btn btn-secondary btn-sm" onclick="exportRotinas()">Exportar CSV</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportRotinas()">${actionButton('Exportar CSV', 'download')}</button>
     </div>
     <div class="stats-grid" style="grid-template-columns:1fr">
       <div class="stat-card">
@@ -426,7 +447,7 @@ async function loadRotinas() {
     </div>
     <div>
     ${rotinas.length === 0
-      ? '<div class="empty-state"><div class="icon">--</div><p>Nenhuma rotina encontrada para este período.</p></div>'
+      ? `<div class="empty-state"><div class="icon">${icon('clipboard')}</div><p>Nenhuma rotina encontrada para este período.</p></div>`
       : rotinas.map(r => renderRotinaCard(r)).join('')
     }
     </div>
@@ -557,7 +578,7 @@ async function openRotinaModal(id) {
     <div class="form-group mt-2">
       <input type="file" id="rm-evidencia-arquivo" class="form-control">
     </div>
-    <button class="btn btn-secondary btn-sm" type="button" onclick="uploadEvidencia(${rotina.id})">Anexar Evidência</button>` : ''}
+    <button class="btn btn-secondary btn-sm" type="button" onclick="uploadEvidencia(${rotina.id})">${actionButton('Anexar Evidência', 'file')}</button>` : ''}
 
     <div class="divider"></div>
     <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.75rem">Histórico e auditoria</h4>
@@ -620,7 +641,7 @@ function renderEvidencias(rotina, canEdit) {
   return rotina.evidencias.map(e => `
     <div class="chip" style="justify-content:space-between;width:100%;margin-bottom:.5rem">
       <a href="${e.url}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis">${e.nome_arquivo}</a>
-      ${canEdit ? `<button class="btn btn-ghost btn-sm" type="button" onclick="deleteEvidencia(${e.id}, ${rotina.id})">Excluir</button>` : ''}
+      ${canEdit ? `<button class="btn btn-ghost btn-sm btn-icon" type="button" onclick="deleteEvidencia(${e.id}, ${rotina.id})" title="Excluir">${icon('trash')}<span class="sr-only">Excluir</span></button>` : ''}
     </div>
   `).join('');
 }
@@ -713,7 +734,7 @@ async function loadAcompanhamento() {
         <option value="concluida">Concluída</option>
         <option value="nao_realizada">Não Realizada</option>
       </select>
-      <button class="btn btn-secondary btn-sm" onclick="exportAcompanhamento()">Exportar CSV</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportAcompanhamento()">${actionButton('Exportar CSV', 'download')}</button>
     </div>
 
     <div class="card">
@@ -741,7 +762,7 @@ async function loadAcompanhamento() {
                     <td style="font-size:.8rem;color:var(--cinza-light)">${fmtDate(r.periodo_inicio)}</td>
                     <td><span class="badge badge-${r.status}">${STATUS_LABELS[r.status]}</span></td>
                     <td style="font-size:.8rem">${r.data_conclusao ? fmtDatetime(r.data_conclusao) : '—'}</td>
-                    <td><button class="btn btn-ghost btn-sm btn-icon" onclick="openRotinaModal(${r.id})" title="Visualizar">Ver</button></td>
+                    <td><button class="btn btn-ghost btn-sm btn-icon" onclick="openRotinaModal(${r.id})" title="Visualizar">${icon('eye')}<span class="sr-only">Visualizar</span></button></td>
                   </tr>`).join('')}
             </tbody>
           </table>
@@ -772,17 +793,17 @@ async function loadPendencias() {
   const pendencias = r?.ok ? r.data : [];
 
   wrap.innerHTML = `<div class="analytics-page">` + (pendencias.length === 0
-    ? '<div class="empty-state"><div class="icon">--</div><p>Nenhuma pendência encontrada.</p></div>'
+    ? `<div class="empty-state"><div class="icon">${icon('check')}</div><p>Nenhuma pendência encontrada.</p></div>`
     : `<div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table>
       <thead><tr><th>Usuário</th><th>Atividade</th><th>Período Limite</th><th>Status</th><th>Justificativa</th><th>Ação</th></tr></thead>
       <tbody>${pendencias.map(r => `
         <tr>
           <td><strong>${r.usuario_nome}</strong></td>
-          <td>${r.atividade_nome} ${r.atividade_obrigatoria ? '<span style="color:var(--vermelho)">★</span>' : ''}</td>
+          <td>${r.atividade_nome} ${r.atividade_obrigatoria ? '<span class="required-dot" title="Obrigatória"></span>' : ''}</td>
           <td style="color:var(--vermelho);font-weight:600;font-size:.85rem">${fmtDate(r.periodo_fim)}</td>
           <td><span class="badge badge-${r.status}">${STATUS_LABELS[r.status]}</span></td>
           <td style="font-size:.8rem;color:var(--cinza)">${r.justificativa || '—'}</td>
-          <td><button class="btn btn-ghost btn-sm btn-icon" onclick="openRotinaModal(${r.id})" title="Registrar">Abrir</button></td>
+          <td><button class="btn btn-ghost btn-sm btn-icon" onclick="openRotinaModal(${r.id})" title="Registrar">${icon('edit')}<span class="sr-only">Abrir</span></button></td>
         </tr>`).join('')}
       </tbody></table></div></div></div>`) + `</div>`;
 }
@@ -819,7 +840,7 @@ async function loadUsuarios() {
         <option value="inativo">Inativo</option>
         <option value="bloqueado">Bloqueado</option>
       </select>
-      <button class="btn btn-primary btn-sm" onclick="openUsuarioModal()">+ Novo Usuário</button>
+      <button class="btn btn-primary btn-sm" onclick="openUsuarioModal()">${actionButton('Novo Usuário', 'plus')}</button>
     </div>
     <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table>
       <thead><tr><th>Nome</th><th>Email</th><th>Perfil</th><th>Regional</th><th>Status</th><th>Ações</th></tr></thead>
@@ -831,9 +852,9 @@ async function loadUsuarios() {
           <td>${regMap[u.regional_id] || '—'}</td>
           <td><span class="badge badge-${u.status}">${u.status}</span></td>
           <td style="display:flex;gap:.25rem">
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="openUsuarioModal(${JSON.stringify(u).replace(/"/g,'&quot;')})" title="Editar">Editar</button>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleUsuarioStatus(${u.id},'${u.status}')" title="Alterar status">Status</button>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteUsuario(${u.id})" title="Excluir">Excluir</button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="openUsuarioModal(${JSON.stringify(u).replace(/"/g,'&quot;')})" title="Editar">${icon('edit')}<span class="sr-only">Editar</span></button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleUsuarioStatus(${u.id},'${u.status}')" title="Alterar status">${icon('refresh')}<span class="sr-only">Status</span></button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteUsuario(${u.id})" title="Excluir">${icon('trash')}<span class="sr-only">Excluir</span></button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -952,7 +973,7 @@ async function loadRegionais() {
   wrap.innerHTML = `
     <div class="analytics-page">
     <div class="filter-bar">
-      <button class="btn btn-primary btn-sm" onclick="openRegionalModal()">+ Nova Regional</button>
+      <button class="btn btn-primary btn-sm" onclick="openRegionalModal()">${actionButton('Nova Regional', 'plus')}</button>
     </div>
     <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table>
       <thead><tr><th>Nome</th><th>Descrição</th><th>Status</th><th>Criado em</th><th>Ações</th></tr></thead>
@@ -963,9 +984,9 @@ async function loadRegionais() {
           <td><span class="badge badge-${r.ativo?'ativo':'inativo'}">${r.ativo?'Ativa':'Inativa'}</span></td>
           <td style="font-size:.8rem;color:var(--cinza-light)">${fmtDate(r.criado_em)}</td>
           <td style="display:flex;gap:.25rem">
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="openRegionalModal(${JSON.stringify(r).replace(/"/g,'&quot;')})" title="Editar">Editar</button>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleRegional(${r.id},${r.ativo})" title="Alterar status">Status</button>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteRegional(${r.id})" title="Excluir">Excluir</button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="openRegionalModal(${JSON.stringify(r).replace(/"/g,'&quot;')})" title="Editar">${icon('edit')}<span class="sr-only">Editar</span></button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleRegional(${r.id},${r.ativo})" title="Alterar status">${icon('refresh')}<span class="sr-only">Status</span></button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteRegional(${r.id})" title="Excluir">${icon('trash')}<span class="sr-only">Excluir</span></button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -1061,8 +1082,8 @@ async function loadAtividades() {
         <option value="quinzenal">Quinzenal</option>
         <option value="mensal">Mensal</option>
       </select>
-      <button class="btn btn-primary btn-sm" onclick="openAtividadeModal()">+ Nova Atividade</button>
-      <button class="btn btn-secondary btn-sm" onclick="exportAtividades()">Exportar CSV</button>
+      <button class="btn btn-primary btn-sm" onclick="openAtividadeModal()">${actionButton('Nova Atividade', 'plus')}</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportAtividades()">${actionButton('Exportar CSV', 'download')}</button>
     </div>
     <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table>
       <thead><tr><th>#</th><th>Nome</th><th>Perfil</th><th>Periodicidade</th><th>Obrigatória</th><th>Evidência</th><th>Ações</th></tr></thead>
@@ -1075,8 +1096,8 @@ async function loadAtividades() {
           <td>${a.obrigatoria ? 'Sim' : 'Não'}</td>
           <td style="font-size:.8rem;color:var(--cinza)">${a.tipo_evidencia||'—'}</td>
           <td style="display:flex;gap:.25rem">
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="openAtividadeModal(${JSON.stringify(a).replace(/"/g,'&quot;')})" title="Editar">Editar</button>
-            <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteAtividade(${a.id})" title="Excluir">Excluir</button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="openAtividadeModal(${JSON.stringify(a).replace(/"/g,'&quot;')})" title="Editar">${icon('edit')}<span class="sr-only">Editar</span></button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteAtividade(${a.id})" title="Excluir">${icon('trash')}<span class="sr-only">Excluir</span></button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -1227,7 +1248,7 @@ async function loadPerfil() {
           <input type="password" id="p-atual" class="form-control"></div>
         <div class="form-group"><label class="form-label">Nova Senha</label>
           <input type="password" id="p-nova" class="form-control"></div>
-        <button class="btn btn-primary" onclick="trocarSenha()">Salvar Nova Senha</button>
+        <button class="btn btn-primary" onclick="trocarSenha()">${actionButton('Salvar Nova Senha', 'lock')}</button>
       </div>
     </div>
     </div>`;
