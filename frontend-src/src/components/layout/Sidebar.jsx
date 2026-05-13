@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { PERFIL_LABELS } from '../../utils/constants';
+import Avatar from '../ui/Avatar';
 
 const NAV_SECTIONS = {
   principal: {
@@ -141,9 +142,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
         {/* User info */}
         <div className="px-3 py-3 border-b border-sidebar-border shrink-0">
           <div className="flex items-center gap-3">
-            <div className="shrink-0 w-8 h-8 rounded-lg bg-primary-600/20 flex items-center justify-center text-primary-400 text-sm font-bold">
-              {initial}
-            </div>
+            <Avatar src={currentUser.foto_url} name={currentUser.nome} size="sm" />
             <AnimatePresence>
               {!collapsed && (
                 <motion.div

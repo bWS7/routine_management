@@ -10,8 +10,8 @@ import PendenciasPage from './pages/PendenciasPage';
 import UsuariosPage from './pages/UsuariosPage';
 import RegionaisPage from './pages/RegionaisPage';
 import AtividadesPage from './pages/AtividadesPage';
-import PerfilPage from './pages/PerfilPage';
 import AuditoriaPage from './pages/AuditoriaPage';
+import MeuPerfil from './pages/MeuPerfil';
 
 const PAGES = {
   dashboard:      DashboardPage,
@@ -21,7 +21,7 @@ const PAGES = {
   usuarios:       UsuariosPage,
   regionais:      RegionaisPage,
   atividades:     AtividadesPage,
-  perfil:         PerfilPage,
+  perfil:         MeuPerfil,
   auditoria:      AuditoriaPage,
 };
 

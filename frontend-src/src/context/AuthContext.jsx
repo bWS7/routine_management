@@ -62,8 +62,13 @@ export function AuthProvider({ children }) {
     return r?.data?.erro || 'Erro ao fazer login';
   };
 
+  const updateCurrentUser = (userData) => {
+    setCurrentUser(userData);
+    localStorage.setItem('gc_user', JSON.stringify(userData));
+  };
+
   return (
-    <AuthContext.Provider value={{ currentUser, login, logout, loading }}>
+    <AuthContext.Provider value={{ currentUser, login, logout, loading, updateCurrentUser }}>
       {children}
     </AuthContext.Provider>
   );

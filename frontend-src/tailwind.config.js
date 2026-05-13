@@ -11,31 +11,31 @@ export default {
       },
       colors: {
         primary: {
-          50:  '#EFF6FF',
-          100: '#DBEAFE',
-          200: '#BFDBFE',
-          300: '#93C5FD',
-          400: '#60A5FA',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-          800: '#1E40AF',
-          900: '#1E3A8A',
+          50:  '#FFF1F1',
+          100: '#FFE1E1',
+          200: '#FFC7C7',
+          300: '#FFA1A1',
+          400: '#FF6B6B',
+          500: '#E60000', // Vermelho Accent
+          600: '#990000', // Vinho Médio
+          700: '#660000', // Vinho Profundo
+          800: '#4D0000', // Vinho Dark
+          900: '#330000',
         },
         sidebar: {
-          bg:     '#111827',
-          hover:  '#1F2937',
-          active: '#1F2937',
-          border: '#1F2937',
-          text:   '#9CA3AF',
-          label:  '#6B7280',
+          bg:     '#0D0D0D', // Preto Profundo
+          hover:  '#1A1A1A',
+          active: '#262626',
+          border: '#1A1A1A',
+          text:   '#A3A3A3',
+          label:  '#525252',
         },
         surface: {
-          DEFAULT: '#F5F7FA',
+          DEFAULT: '#F5F5F5',
           card:    '#FFFFFF',
-          overlay: 'rgba(17,24,39,0.4)',
+          overlay: 'rgba(0,0,0,0.5)',
         },
-        brand: '#2563EB',
+        brand: '#660000', // Vinho
         success: { DEFAULT: '#22C55E', light: '#DCFCE7', dark: '#15803D' },
         warning: { DEFAULT: '#F59E0B', light: '#FEF3C7', dark: '#92400E' },
         error:   { DEFAULT: '#EF4444', light: '#FEE2E2', dark: '#B91C1C' },
