@@ -10,6 +10,7 @@ import { Select } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { PageSpinner } from '../components/ui/Spinner';
 import { PERFIL_LABELS, PERFIL_COLORS, fmtDate } from '../utils/constants';
+import GerarRotinasModal from '../components/shared/GerarRotinasModal';
 
 function PorPerfil({ por_perfil }) {
   if (!por_perfil || !Object.keys(por_perfil).length)
@@ -83,7 +84,7 @@ export default function DashboardPage() {
   const [periodo, setPeriodo] = useState('semanal');
   const [regionalId, setRegionalId] = useState('');
   const [regionais, setRegionais] = useState([]);
-  const [generating, setGenerating] = useState(false);
+  const [showGerarModal, setShowGerarModal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,13 +104,6 @@ export default function DashboardPage() {
     });
   }, [currentUser]);
 
-  const gerarRotinas = async () => {
-    setGenerating(true);
-    const r = await apiFetch('/api/rotinas/gerar', { method: 'POST', body: JSON.stringify({}) });
-    if (r?.ok) { toast(`${r.data.total} rotinas geradas!`, 'success'); load(); }
-    else toast('Erro ao gerar rotinas', 'error');
-    setGenerating(false);
-  };
 
   const exportar = () => {
     let url = `/api/rotinas/dashboard/export?periodo=${periodo}`;
@@ -145,7 +139,7 @@ export default function DashboardPage() {
         <div className="ml-auto flex gap-2">
           <Button variant="secondary" icon={Download} onClick={exportar}>Exportar CSV</Button>
           {currentUser?.perfil === 'admin' && (
-            <Button icon={RefreshCw} onClick={gerarRotinas} loading={generating}>
+            <Button icon={RefreshCw} onClick={() => setShowGerarModal(true)}>
               Gerar Rotinas
             </Button>
           )}
@@ -215,6 +209,12 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
       </div>
+
+      <GerarRotinasModal 
+        open={showGerarModal} 
+        onClose={() => setShowGerarModal(false)}
+        onGenerated={load}
+      />
     </div>
   );
 }

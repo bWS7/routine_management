@@ -73,18 +73,24 @@ def gerar_rotinas():
         return jsonify({'erro': 'Acesso negado'}), 403
 
     data = request.get_json() or {}
-    usuario_ids = data.get('usuario_ids')  # None = todos
+    usuario_ids = data.get('usuario_ids')  # Lista de IDs ou None para todos
     referencia_str = data.get('referencia')
+    periodicidade_filtro = data.get('periodicidade') # 'semanal', 'quinzenal', 'mensal' ou None
+    
     referencia = date.fromisoformat(referencia_str) if referencia_str else date.today()
 
     query = Usuario.query.filter_by(status='ativo')
-    if usuario_ids:
+    if usuario_ids and isinstance(usuario_ids, list) and len(usuario_ids) > 0:
         query = query.filter(Usuario.id.in_(usuario_ids))
     usuarios = query.all()
 
     criadas = 0
     for usuario in usuarios:
-        atividades = AtividadeCatalogo.query.filter_by(perfil=usuario.perfil, ativo=True).all()
+        cat_query = AtividadeCatalogo.query.filter_by(perfil=usuario.perfil, ativo=True)
+        if periodicidade_filtro and periodicidade_filtro != 'todas':
+            cat_query = cat_query.filter_by(periodicidade=periodicidade_filtro)
+        
+        atividades = cat_query.all()
         for atividade in atividades:
             inicio, fim = get_periodo(atividade.periodicidade, referencia)
             existe = Rotina.query.filter_by(
