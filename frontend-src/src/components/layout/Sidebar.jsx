@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, ClipboardList, AlertCircle, Users, Map,
   BookOpen, Shield, LogOut, User, ChevronLeft, ChevronRight,
-  Activity, TrendingUp,
+  Activity, TrendingUp, Menu
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { PERFIL_LABELS } from '../../utils/constants';
@@ -13,7 +13,7 @@ const NAV_SECTIONS = {
   principal: {
     label: 'Principal',
     items: [
-      { id: 'dashboard',      label: 'Dashboard',        icon: LayoutDashboard,  roles: ['admin', 'sr'] },
+      { id: 'dashboard',      label: 'Dashboard',        icon: Menu,             roles: ['admin', 'sr'] },
       { id: 'rotinas',        label: 'Minhas Rotinas',   icon: ClipboardList,    roles: null },
       { id: 'pendencias',     label: 'Pendências',       icon: AlertCircle,      roles: null },
     ],
@@ -115,6 +115,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
           fixed top-0 left-0 h-full z-50 bg-sidebar-bg flex flex-col overflow-hidden
           transition-transform duration-200
           lg:relative lg:translate-x-0 lg:z-auto
+          scrollbar-hide
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
@@ -185,7 +186,11 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
                       item={item}
                       active={activePage === item.id}
                       collapsed={collapsed}
-                      onNavigate={(page) => { onNavigate(page); onCloseMobile?.(); }}
+                      onNavigate={(page) => { 
+                        if (item.id === 'dashboard') setCollapsed(!collapsed);
+                        onNavigate(page); 
+                        onCloseMobile?.(); 
+                      }}
                     />
                   ))}
                 </div>
@@ -230,14 +235,6 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
           </button>
         </div>
 
-        {/* Collapse button */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-20 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center
-                     shadow-sm text-gray-400 hover:text-gray-600 transition-colors z-10 hidden lg:flex"
-        >
-          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-        </button>
       </motion.aside>
     </>
   );
