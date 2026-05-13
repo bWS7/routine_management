@@ -109,29 +109,35 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
   const [carteira, setCarteira] = useState('');
   const [metas, setMetas] = useState('');
 
-  const loadRotina = useCallback(async () => {
+  const loadRotina = useCallback(async (onlyMetadata = false) => {
     if (!rotinaId) return;
-    setLoading(true);
+    if (!onlyMetadata) setLoading(true);
+    
     const [r, h] = await Promise.all([
       apiFetch(`/api/rotinas/${rotinaId}`),
       apiFetch(`/api/rotinas/${rotinaId}/historico`),
     ]);
+    
     if (r?.ok) {
       const d = r.data;
       setRotina(d);
-      setStatus(d.status);
-      setComentario(d.comentario || '');
-      setJustificativa(d.justificativa || '');
-      setAcaoCorretiva(d.acao_corretiva || '');
-      setResponsavel(d.responsavel_acao || '');
-      setNovoPrazo(d.novo_prazo || '');
-      setPlanoSemana(d.plano_semana || '');
-      setChecklist(d.checklist || '');
-      setRelatorio(d.relatorio || '');
-      setVisitas(d.visitas_ativacoes || '');
-      setResultados(d.resultados_visita || '');
-      setCarteira(d.carteira_ativa || '');
-      setMetas(d.metas_canal || '');
+      
+      // Only set form fields if it's the initial load
+      if (!onlyMetadata) {
+        setStatus(d.status);
+        setComentario(d.comentario || '');
+        setJustificativa(d.justificativa || '');
+        setAcaoCorretiva(d.acao_corretiva || '');
+        setResponsavel(d.responsavel_acao || '');
+        setNovoPrazo(d.novo_prazo || '');
+        setPlanoSemana(d.plano_semana || '');
+        setChecklist(d.checklist || '');
+        setRelatorio(d.relatorio || '');
+        setVisitas(d.visitas_ativacoes || '');
+        setResultados(d.resultados_visita || '');
+        setCarteira(d.carteira_ativa || '');
+        setMetas(d.metas_canal || '');
+      }
     }
     if (h?.ok) setHistorico(h.data);
     setLoading(false);
@@ -257,7 +263,7 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
 
           <div className="border-t border-gray-100 pt-5">
             <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Evidências e Anexos</h4>
-            <EvidenciasList evidencias={rotina.evidencias} rotinaId={rotinaId} canEdit={canEdit} onReload={loadRotina} />
+            <EvidenciasList evidencias={rotina.evidencias} rotinaId={rotinaId} canEdit={canEdit} onReload={() => loadRotina(true)} />
           </div>
 
           <div className="border-t border-gray-100 pt-5">
