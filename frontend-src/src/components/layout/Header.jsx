@@ -20,7 +20,7 @@ export default function Header({ activePage, onToggleMobile }) {
   const title = PAGE_TITLES[activePage] || activePage;
 
   return (
-    <header className="h-[64px] bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-30">
+    <header className="h-[56px] bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-30">
       {/* Left */}
       <div className="flex items-center gap-4">
         <button

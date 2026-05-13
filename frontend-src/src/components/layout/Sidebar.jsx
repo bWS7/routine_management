@@ -90,7 +90,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
     return roles.includes(perfil);
   };
 
-  const sidebarWidth = collapsed ? 'w-[68px]' : 'w-64';
+  const sidebarWidth = collapsed ? 'w-[60px]' : 'w-[200px]';
 
   return (
     <>
@@ -109,7 +109,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
 
       {/* Sidebar */}
       <motion.aside
-        animate={{ width: collapsed ? 68 : 256 }}
+        animate={{ width: collapsed ? 60 : 200 }}
         transition={{ duration: 0.22, ease: 'easeInOut' }}
         className={`
           fixed top-0 left-0 h-full z-50 bg-sidebar-bg flex flex-col overflow-hidden
@@ -119,7 +119,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
         `}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border shrink-0 min-h-[68px]">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border shrink-0 min-h-[56px]">
           <div className="shrink-0 w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
             <Activity size={16} className="text-white" />
           </div>
