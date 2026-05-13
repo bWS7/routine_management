@@ -1,0 +1,84 @@
+import { useState } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import AppLayout from './components/layout/AppLayout';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import RotinasPage from './pages/RotinasPage';
+import AcompanhamentoPage from './pages/AcompanhamentoPage';
+import PendenciasPage from './pages/PendenciasPage';
+import UsuariosPage from './pages/UsuariosPage';
+import RegionaisPage from './pages/RegionaisPage';
+import AtividadesPage from './pages/AtividadesPage';
+import PerfilPage from './pages/PerfilPage';
+import AuditoriaPage from './pages/AuditoriaPage';
+
+const PAGES = {
+  dashboard:      DashboardPage,
+  rotinas:        RotinasPage,
+  acompanhamento: AcompanhamentoPage,
+  pendencias:     PendenciasPage,
+  usuarios:       UsuariosPage,
+  regionais:      RegionaisPage,
+  atividades:     AtividadesPage,
+  perfil:         PerfilPage,
+  auditoria:      AuditoriaPage,
+};
+
+// Role-based access
+const PAGE_ROLES = {
+  dashboard:      ['admin', 'sr'],
+  acompanhamento: ['admin', 'sr'],
+  usuarios:       ['admin'],
+  regionais:      ['admin'],
+  atividades:     ['admin'],
+  auditoria:      ['admin'],
+};
+
+function AppContent() {
+  const { currentUser, loading } = useAuth();
+  const [activePage, setActivePage] = useState('dashboard');
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          </div>
+          <p className="text-sm text-gray-400">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) return <LoginPage />;
+
+  const navigate = (page) => {
+    const roles = PAGE_ROLES[page];
+    if (roles && !roles.includes(currentUser.perfil)) {
+      // Redirect to appropriate default
+      setActivePage(['admin', 'sr'].includes(currentUser.perfil) ? 'dashboard' : 'rotinas');
+      return;
+    }
+    setActivePage(page);
+  };
+
+  const PageComponent = PAGES[activePage] || RotinasPage;
+
+  return (
+    <AppLayout activePage={activePage} onNavigate={navigate}>
+      <PageComponent />
+    </AppLayout>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </AuthProvider>
+  );
+}
