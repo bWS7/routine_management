@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Camera, User, Mail, Shield, Check } from 'lucide-react';
+import { Camera, User, Mail, Shield, Check, Lock, Key, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { apiFetch } from '../api/client';
@@ -15,6 +15,14 @@ export default function MeuPerfil() {
   
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(null);
+
+  // Password state
+  const [passwordData, setPasswordData] = useState({
+    senha_atual: '',
+    nova_senha: '',
+    confirmar_senha: ''
+  });
+  const [loadingSenha, setLoadingSenha] = useState(false);
 
   if (!currentUser) return null;
 
@@ -50,11 +58,40 @@ export default function MeuPerfil() {
     setUploading(false);
   };
 
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (passwordData.nova_senha !== passwordData.confirmar_senha) {
+      toast('As novas senhas não coincidem', 'error');
+      return;
+    }
+    if (passwordData.nova_senha.length < 6) {
+      toast('A nova senha deve ter pelo menos 6 caracteres', 'error');
+      return;
+    }
+
+    setLoadingSenha(true);
+    const r = await apiFetch('/api/usuarios/perfil/senha', {
+      method: 'POST',
+      body: JSON.stringify({
+        senha_atual: passwordData.senha_atual,
+        nova_senha: passwordData.nova_senha
+      })
+    });
+
+    if (r?.ok) {
+      toast('Senha alterada com sucesso!', 'success');
+      setPasswordData({ senha_atual: '', nova_senha: '', confirmar_senha: '' });
+    } else {
+      toast(r?.data?.erro || 'Erro ao alterar senha', 'error');
+    }
+    setLoadingSenha(false);
+  };
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 pb-12">
       <header>
         <h1 className="text-2xl font-bold text-gray-900">Meu Perfil</h1>
-        <p className="text-gray-500">Gerencie suas informações pessoais e foto de perfil.</p>
+        <p className="text-gray-500">Gerencie suas informações pessoais e segurança.</p>
       </header>
 
       <Card className="p-8">
@@ -117,6 +154,76 @@ export default function MeuPerfil() {
             </div>
           </div>
         </div>
+      </Card>
+
+      {/* Alterar Senha Section */}
+      <Card className="p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+            <Lock size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Segurança da Conta</h3>
+            <p className="text-sm text-gray-500">Mantenha sua senha atualizada para proteger seu acesso.</p>
+          </div>
+        </div>
+
+        <form onSubmit={handlePasswordChange} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Senha Atual</label>
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <Key size={16} />
+                </div>
+                <input
+                  type="password"
+                  required
+                  placeholder="Sua senha atual"
+                  value={passwordData.senha_atual}
+                  onChange={(e) => setPasswordData({ ...passwordData, senha_atual: e.target.value })}
+                  className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Nova Senha</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Mínimo 6 caracteres"
+                  value={passwordData.nova_senha}
+                  onChange={(e) => setPasswordData({ ...passwordData, nova_senha: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Confirmar Nova Senha</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Repita a nova senha"
+                  value={passwordData.confirmar_senha}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmar_senha: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button 
+              type="submit" 
+              loading={loadingSenha}
+              icon={Save}
+              className="w-full sm:w-auto"
+            >
+              Salvar Nova Senha
+            </Button>
+          </div>
+        </form>
       </Card>
       
       <div className="flex justify-center text-xs text-gray-400">

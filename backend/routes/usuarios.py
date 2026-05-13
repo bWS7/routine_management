@@ -174,3 +174,23 @@ def upload_foto():
         return jsonify({'foto_url': me.foto_url})
     
     return jsonify({'erro': 'Tipo de arquivo não permitido'}), 400
+
+
+@usuarios_bp.route('/perfil/senha', methods=['POST'])
+@jwt_required()
+def mudar_senha():
+    me = get_current_user()
+    data = request.get_json()
+    senha_atual = data.get('senha_atual')
+    nova_senha = data.get('nova_senha')
+
+    if not senha_atual or not nova_senha:
+        return jsonify({'erro': 'Senha atual e nova senha são obrigatórias'}), 400
+    
+    if not me.check_senha(senha_atual):
+        return jsonify({'erro': 'Senha atual incorreta'}), 401
+    
+    me.set_senha(nova_senha)
+    db.session.commit()
+    log_audit(me.id, 'usuario', me.id, 'mudar_senha', {'mensagem': 'Senha alterada pelo próprio usuário'})
+    return jsonify({'mensagem': 'Senha alterada com sucesso'})
