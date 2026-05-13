@@ -19,7 +19,7 @@ class Regional(db.Model):
             'nome': self.nome,
             'descricao': self.descricao,
             'ativo': self.ativo,
-            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+            'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }
 
 
@@ -55,7 +55,7 @@ class Usuario(db.Model):
             'supervisor_id': self.supervisor_id,
             'supervisor_nome': self.supervisor.nome if self.supervisor else None,
             'status': self.status,
-            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+            'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }
 
 
@@ -134,7 +134,7 @@ class Rotina(db.Model):
             'periodo_fim': self.periodo_fim.isoformat() if self.periodo_fim else None,
             'periodicidade': self.periodicidade,
             'status': self.status,
-            'data_conclusao': self.data_conclusao.isoformat() if self.data_conclusao else None,
+            'data_conclusao': self.data_conclusao.replace(tzinfo=timezone.utc).isoformat() if self.data_conclusao else None,
             'comentario': self.comentario,
             'justificativa': self.justificativa,
             'acao_corretiva': self.acao_corretiva,
@@ -148,8 +148,8 @@ class Rotina(db.Model):
             'carteira_ativa': self.carteira_ativa,
             'metas_canal': self.metas_canal,
             'evidencias': [e.to_dict() for e in self.evidencias],
-            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
-            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None
+            'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.replace(tzinfo=timezone.utc).isoformat() if self.atualizado_em else None
         }
 
 
@@ -169,7 +169,7 @@ class Evidencia(db.Model):
             'nome_arquivo': self.nome_arquivo,
             'url': self.url,
             'tipo': self.tipo,
-            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+            'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }
 
 
@@ -193,7 +193,7 @@ class AuditLog(db.Model):
             'usuario_id': self.usuario_id,
             'usuario_nome': self.usuario.nome if self.usuario else None,
             'detalhes': self.detalhes,
-            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+            'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }
 
 
@@ -219,5 +219,5 @@ class HistoricoRotina(db.Model):
             'status_anterior': self.status_anterior,
             'status_novo': self.status_novo,
             'observacao': self.observacao,
-            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+            'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }

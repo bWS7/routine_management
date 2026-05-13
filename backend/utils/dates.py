@@ -1,6 +1,5 @@
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 
 def get_now_br():
-    """Retorna o datetime atual no fuso horário de Brasília."""
-    return datetime.now(ZoneInfo("America/Sao_Paulo"))
+    """Retorna o datetime atual em UTC para persistência no banco."""
+    return datetime.now(timezone.utc)
