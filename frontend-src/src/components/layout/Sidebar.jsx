@@ -13,7 +13,7 @@ const NAV_SECTIONS = {
   principal: {
     label: 'Principal',
     items: [
-      { id: 'dashboard',      label: 'Dashboard',        icon: Menu,             roles: ['admin', 'sr'] },
+      { id: 'dashboard',      label: 'Dashboard',        icon: LayoutDashboard,  roles: ['admin', 'sr'] },
       { id: 'rotinas',        label: 'Minhas Rotinas',   icon: ClipboardList,    roles: null },
       { id: 'pendencias',     label: 'Pendências',       icon: AlertCircle,      roles: null },
     ],
@@ -112,17 +112,20 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
         animate={{ width: collapsed ? 60 : 190 }}
         transition={{ duration: 0.22, ease: 'easeInOut' }}
         className={`
-          fixed top-0 left-0 h-full z-50 bg-sidebar-bg flex flex-col overflow-hidden
+          fixed top-0 left-0 h-full z-50 bg-sidebar-bg flex flex-col overflow-x-hidden overflow-y-auto
           transition-transform duration-200
           lg:relative lg:translate-x-0 lg:z-auto
-          scrollbar-hide
+          [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:display-none
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border shrink-0 min-h-[56px]">
+        {/* Logo / Toggle */}
+        <div 
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border shrink-0 min-h-[56px] cursor-pointer hover:bg-sidebar-hover transition-colors"
+        >
           <div className="shrink-0 w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
-            <Activity size={16} className="text-white" />
+            <Menu size={18} className="text-white" />
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -187,7 +190,6 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
                       active={activePage === item.id}
                       collapsed={collapsed}
                       onNavigate={(page) => { 
-                        if (item.id === 'dashboard') setCollapsed(!collapsed);
                         onNavigate(page); 
                         onCloseMobile?.(); 
                       }}
