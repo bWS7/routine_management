@@ -33,6 +33,7 @@ class Usuario(db.Model):
     regional_id = db.Column(db.Integer, db.ForeignKey('regionais.id'), nullable=True)
     supervisor_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     status = db.Column(db.String(20), default='ativo')  # ativo, inativo, bloqueado
+    foto_url = db.Column(db.Text)
     criado_em = db.Column(db.DateTime, default=get_now_br)
     atualizado_em = db.Column(db.DateTime, default=get_now_br, onupdate=get_now_br)
     subordinados = db.relationship('Usuario', backref=db.backref('supervisor', remote_side=[id]), lazy=True)
@@ -55,6 +56,7 @@ class Usuario(db.Model):
             'supervisor_id': self.supervisor_id,
             'supervisor_nome': self.supervisor.nome if self.supervisor else None,
             'status': self.status,
+            'foto_url': self.foto_url,
             'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }
 

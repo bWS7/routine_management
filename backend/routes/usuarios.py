@@ -1,4 +1,7 @@
-from flask import Blueprint, request, jsonify
+import os
+import uuid
+from flask import Blueprint, request, jsonify, current_app
+from werkzeug.utils import secure_filename
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.audit import log_audit, diff_payload
 from backend.models import Usuario
@@ -6,6 +9,11 @@ from backend.constants import PERFIS_USUARIO
 from backend.extensions import db
 
 usuarios_bp = Blueprint('usuarios', __name__)
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def get_current_user():
@@ -135,3 +143,34 @@ def deletar(uid):
     log_audit(me.id, 'usuario', u.id, 'excluir', {'status': 'inativo', 'email': u.email})
     db.session.commit()
     return jsonify({'mensagem': 'Usuário inativado'})
+
+
+@usuarios_bp.route('/perfil/foto', methods=['POST'])
+@jwt_required()
+def upload_foto():
+    me = get_current_user()
+    if 'foto' not in request.files:
+        return jsonify({'erro': 'Nenhum arquivo enviado'}), 400
+    
+    arquivo = request.files['foto']
+    if arquivo.filename == '':
+        return jsonify({'erro': 'Nenhum arquivo selecionado'}), 400
+    
+    if arquivo and allowed_file(arquivo.filename):
+        # Garantir pasta de perfis
+        folder = os.path.join(current_app.config['UPLOAD_FOLDER'], 'perfis')
+        os.makedirs(folder, exist_ok=True)
+        
+        ext = arquivo.filename.rsplit('.', 1)[1].lower()
+        nome_final = f"user_{me.id}_{uuid.uuid4().hex[:8]}.{ext}"
+        caminho = os.path.join(folder, nome_final)
+        
+        arquivo.save(caminho)
+        
+        # Atualizar usuário
+        me.foto_url = f"/uploads/perfis/{nome_final}"
+        db.session.commit()
+        
+        return jsonify({'foto_url': me.foto_url})
+    
+    return jsonify({'erro': 'Tipo de arquivo não permitido'}), 400

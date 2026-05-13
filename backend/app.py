@@ -98,6 +98,15 @@ def create_app():
 
 def _seed_initial_data():
     from backend.models import Usuario
+    from sqlalchemy import text
+    
+    # Migração manual de colunas novas
+    try:
+        db.session.execute(text("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT"))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao adicionar coluna foto_url: {e}")
     
     # Novo Admin Master
     admin_email = 'bruno.alves@sousaaraujo.com.br'
