@@ -1,6 +1,7 @@
 import { Menu, Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { PERFIL_LABELS } from '../../utils/constants';
+import Avatar from '../ui/Avatar';
 
 const PAGE_TITLES = {
   dashboard:      'Dashboard',
@@ -38,9 +39,7 @@ export default function Header({ activePage, onToggleMobile }) {
       {/* Right */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white text-sm font-semibold">
-            {currentUser?.nome?.charAt(0).toUpperCase()}
-          </div>
+          <Avatar src={currentUser?.foto_url} name={currentUser?.nome} size="sm" />
           <div className="hidden sm:block text-right">
             <div className="text-sm font-medium text-gray-800 leading-tight">{currentUser?.nome}</div>
             <div className="text-xs text-gray-400">{PERFIL_LABELS[currentUser?.perfil] || currentUser?.perfil}</div>
