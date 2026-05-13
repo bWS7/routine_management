@@ -97,30 +97,21 @@ def create_app():
 
 
 def _seed_initial_data():
-    from backend.models import Usuario, Rotina, Evidencia, HistoricoRotina, AuditLog
+    from backend.models import Usuario
     
-    # LIMPANDO TUDO CONFORME SOLICITADO (Ação Única)
-    print("Iniciando limpeza total do banco de dados...")
-    db.session.query(Evidencia).delete()
-    db.session.query(HistoricoRotina).delete()
-    db.session.query(AuditLog).delete()
-    db.session.query(Rotina).delete()
-    db.session.query(Usuario).delete()
-    db.session.commit()
-    print("Banco de dados limpo.")
-
     # Novo Admin Master
     admin_email = 'bruno.alves@sousaaraujo.com.br'
-    admin = Usuario(
-        nome='Bruno Alves',
-        email=admin_email,
-        perfil='admin',
-        status='ativo'
-    )
-    admin.set_senha('admin123')
-    db.session.add(admin)
-    db.session.commit()
-    print(f"Usuário admin {admin_email} criado com sucesso.")
+    if not Usuario.query.filter_by(email=admin_email).first():
+        admin = Usuario(
+            nome='Bruno Alves',
+            email=admin_email,
+            perfil='admin',
+            status='ativo'
+        )
+        admin.set_senha('admin123')
+        db.session.add(admin)
+        db.session.commit()
+        print(f"Usuário admin {admin_email} garantido.")
 
 
 
