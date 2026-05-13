@@ -42,7 +42,7 @@ function NavItem({ item, active, collapsed, onNavigate }) {
       onClick={() => onNavigate(item.id)}
       title={collapsed ? item.label : undefined}
       className={`
-        relative group flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium
+        relative group flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-xs font-medium
         transition-all duration-150
         ${active
           ? 'bg-primary-600 text-white shadow-sm'
@@ -50,7 +50,7 @@ function NavItem({ item, active, collapsed, onNavigate }) {
         }
       `}
     >
-      <Icon size={17} className="shrink-0" />
+      <Icon size={16} className="shrink-0" />
       <AnimatePresence>
         {!collapsed && (
           <motion.span
@@ -136,8 +136,8 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
                 transition={{ duration: 0.15 }}
                 className="overflow-hidden"
               >
-                <div className="text-white font-semibold text-sm whitespace-nowrap">GC Comercial</div>
-                <div className="text-sidebar-text text-xs whitespace-nowrap">Gestão de Rotinas</div>
+                <div className="text-white font-semibold text-[13px] whitespace-nowrap">GC Comercial</div>
+                <div className="text-sidebar-text text-[10px] whitespace-nowrap">Gestão de Rotinas</div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -155,8 +155,8 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
                   exit={{ opacity: 0 }}
                   className="overflow-hidden min-w-0"
                 >
-                  <div className="text-white text-xs font-medium truncate">{currentUser.nome}</div>
-                  <div className="text-sidebar-text text-xs truncate">{PERFIL_LABELS[perfil] || perfil}</div>
+                  <div className="text-white text-[11px] font-medium truncate">{currentUser.nome}</div>
+                  <div className="text-sidebar-text text-[10px] truncate">{PERFIL_LABELS[perfil] || perfil}</div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -212,10 +212,10 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
           <button
             onClick={logout}
             title={collapsed ? 'Sair' : undefined}
-            className="relative group flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium
+            className="relative group flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-xs font-medium
                        text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-150"
           >
-            <LogOut size={17} className="shrink-0" />
+            <LogOut size={16} className="shrink-0" />
             <AnimatePresence>
               {!collapsed && (
                 <motion.span
