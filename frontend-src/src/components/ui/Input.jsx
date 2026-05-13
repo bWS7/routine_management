@@ -4,7 +4,12 @@ import { ChevronDown } from 'lucide-react';
 export const Input = forwardRef(function Input({ label, error, className = '', ...props }, ref) {
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
+      {label && (
+        <label className="text-sm font-medium text-gray-700">
+          {label}
+          {props.required && <span className="text-red-500 ml-1 font-bold">*</span>}
+        </label>
+      )}
       <input
         ref={ref}
         className={`
@@ -25,7 +30,12 @@ export const Input = forwardRef(function Input({ label, error, className = '', .
 export const Textarea = forwardRef(function Textarea({ label, error, className = '', ...props }, ref) {
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
+      {label && (
+        <label className="text-sm font-medium text-gray-700">
+          {label}
+          {props.required && <span className="text-red-500 ml-1 font-bold">*</span>}
+        </label>
+      )}
       <textarea
         ref={ref}
         className={`
@@ -46,7 +56,12 @@ export const Textarea = forwardRef(function Textarea({ label, error, className =
 export const Select = forwardRef(function Select({ label, error, children, className = '', ...props }, ref) {
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
+      {label && (
+        <label className="text-sm font-medium text-gray-700">
+          {label}
+          {props.required && <span className="text-red-500 ml-1 font-bold">*</span>}
+        </label>
+      )}
       <div className="relative">
         <select
           ref={ref}

@@ -271,7 +271,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
           </div>
 
           {/* Status */}
-          <Select label="Status" value={status} onChange={e => setStatus(e.target.value)} disabled={!canEdit}>
+          <Select label="Status" value={status} onChange={e => setStatus(e.target.value)} disabled={!canEdit} required>
             <option value="nao_iniciada">Não Iniciada</option>
             <option value="em_andamento">Em Andamento</option>
             <option value="concluida">Concluída</option>
@@ -279,7 +279,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
           </Select>
 
           <Textarea label="Comentário" value={comentario} onChange={e => setComentario(e.target.value)}
-            rows={2} placeholder="Observações sobre a execução..." disabled={!canEdit} />
+            rows={2} placeholder="Observações sobre a execução..." disabled={!canEdit} required />
 
           {/* Plano da semana (sr, gv, cd) */}
           {['sr', 'gv', 'cd'].includes(rotina.perfil) && (
@@ -314,17 +314,17 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
           {/* Justificativa */}
           {showJustificativa && (
             <Textarea label="Justificativa" value={justificativa} onChange={e => setJustificativa(e.target.value)}
-              rows={2} placeholder="Por que não foi realizada?" disabled={!canEdit} />
+              rows={2} placeholder="Por que não foi realizada?" disabled={!canEdit} required />
           )}
 
           {/* Ação corretiva */}
           {showAcao && (
             <>
               <Textarea label="Ação Corretiva" value={acaoCorretiva} onChange={e => setAcaoCorretiva(e.target.value)}
-                rows={2} placeholder="O que será feito para corrigir?" disabled={!canEdit} />
+                rows={2} placeholder="O que será feito para corrigir?" disabled={!canEdit} required />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Responsável pela ação" value={responsavel} onChange={e => setResponsavel(e.target.value)} disabled={!canEdit} />
-                <Input type="date" label="Novo prazo" value={novoPrazo} onChange={e => setNovoPrazo(e.target.value)} disabled={!canEdit} />
+                <Input label="Responsável pela ação" value={responsavel} onChange={e => setResponsavel(e.target.value)} disabled={!canEdit} required />
+                <Input type="date" label="Novo prazo" value={novoPrazo} onChange={e => setNovoPrazo(e.target.value)} disabled={!canEdit} required />
               </div>
             </>
           )}
