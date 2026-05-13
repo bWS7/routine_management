@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from backend.audit import log_audit
+from backend.utils.dates import get_now_br
 from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog
 from backend.extensions import db
 from datetime import date, timedelta, datetime, timezone
@@ -175,7 +176,7 @@ def atualizar(rid):
     if 'status' in data:
         r.status = data['status']
         if data['status'] == 'concluida' and not r.data_conclusao:
-            r.data_conclusao = datetime.now(timezone.utc)
+            r.data_conclusao = get_now_br()
         elif data['status'] != 'concluida':
             r.data_conclusao = None
 

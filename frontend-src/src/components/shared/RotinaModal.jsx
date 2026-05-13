@@ -37,7 +37,7 @@ function EvidenciasList({ evidencias, rotinaId, canEdit, onReload }) {
         <div className="space-y-2 mb-3">
           {evidencias.map(e => (
             <div key={e.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-              <a href={e.url} target="_blank" rel="noopener noreferrer"
+              <a href={e.url} target="_blank" rel="noopener noreferrer" download={e.nome_arquivo}
                  className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-800 truncate min-w-0">
                 <Paperclip size={13} className="shrink-0" />
                 <span className="truncate">{e.nome_arquivo}</span>

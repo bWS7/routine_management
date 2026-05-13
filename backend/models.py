@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from backend.utils.dates import get_now_br
 from backend.extensions import db
 import bcrypt
 
@@ -9,7 +10,7 @@ class Regional(db.Model):
     nome = db.Column(db.String(100), nullable=False)
     descricao = db.Column(db.Text)
     ativo = db.Column(db.Boolean, default=True)
-    criado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    criado_em = db.Column(db.DateTime, default=get_now_br)
     usuarios = db.relationship('Usuario', backref='regional', lazy=True)
 
     def to_dict(self):
@@ -32,8 +33,8 @@ class Usuario(db.Model):
     regional_id = db.Column(db.Integer, db.ForeignKey('regionais.id'), nullable=True)
     supervisor_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     status = db.Column(db.String(20), default='ativo')  # ativo, inativo, bloqueado
-    criado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    atualizado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    criado_em = db.Column(db.DateTime, default=get_now_br)
+    atualizado_em = db.Column(db.DateTime, default=get_now_br, onupdate=get_now_br)
     subordinados = db.relationship('Usuario', backref=db.backref('supervisor', remote_side=[id]), lazy=True)
     rotinas = db.relationship('Rotina', backref='usuario', lazy=True)
 
@@ -71,7 +72,7 @@ class AtividadeCatalogo(db.Model):
     prazo_padrao = db.Column(db.Integer, default=7)  # dias
     ordem = db.Column(db.Integer, default=0)
     ativo = db.Column(db.Boolean, default=True)
-    criado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    criado_em = db.Column(db.DateTime, default=get_now_br)
 
     def to_dict(self):
         return {
@@ -111,8 +112,8 @@ class Rotina(db.Model):
     resultados_visita = db.Column(db.Text)
     carteira_ativa = db.Column(db.Text)
     metas_canal = db.Column(db.Text)
-    criado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    atualizado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    criado_em = db.Column(db.DateTime, default=get_now_br)
+    atualizado_em = db.Column(db.DateTime, default=get_now_br, onupdate=get_now_br)
     atividade = db.relationship('AtividadeCatalogo', backref='rotinas', lazy=True)
     evidencias = db.relationship('Evidencia', backref='rotina', lazy=True)
     historico = db.relationship('HistoricoRotina', backref='rotina', lazy=True)
@@ -159,7 +160,7 @@ class Evidencia(db.Model):
     nome_arquivo = db.Column(db.String(255))
     url = db.Column(db.Text)
     tipo = db.Column(db.String(50))
-    criado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    criado_em = db.Column(db.DateTime, default=get_now_br)
 
     def to_dict(self):
         return {
@@ -180,7 +181,7 @@ class AuditLog(db.Model):
     acao = db.Column(db.String(50), nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     detalhes = db.Column(db.Text)
-    criado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    criado_em = db.Column(db.DateTime, default=get_now_br)
     usuario = db.relationship('Usuario', lazy=True)
 
     def to_dict(self):
@@ -205,7 +206,7 @@ class HistoricoRotina(db.Model):
     status_anterior = db.Column(db.String(30))
     status_novo = db.Column(db.String(30))
     observacao = db.Column(db.Text)
-    criado_em = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    criado_em = db.Column(db.DateTime, default=get_now_br)
     usuario = db.relationship('Usuario', lazy=True)
 
     def to_dict(self):

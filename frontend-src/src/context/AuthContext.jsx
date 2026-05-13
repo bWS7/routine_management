@@ -20,6 +20,16 @@ export function AuthProvider({ children }) {
   }, [logout]);
 
   useEffect(() => {
+    const syncLogout = (e) => {
+      if (e.key === 'gc_token' && !e.newValue) {
+        logout();
+      }
+    };
+    window.addEventListener('storage', syncLogout);
+    return () => window.removeEventListener('storage', syncLogout);
+  }, [logout]);
+
+  useEffect(() => {
     const token = localStorage.getItem('gc_token');
     const savedUser = localStorage.getItem('gc_user');
     if (token && savedUser) {

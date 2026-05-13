@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import AppLayout from './components/layout/AppLayout';
@@ -37,7 +37,27 @@ const PAGE_ROLES = {
 
 function AppContent() {
   const { currentUser, loading } = useAuth();
-  const [activePage, setActivePage] = useState('dashboard');
+  
+  // Initialize state based on user role
+  const getDefaultPage = (user) => {
+    if (!user) return 'dashboard';
+    return ['admin', 'sr'].includes(user.perfil) ? 'dashboard' : 'rotinas';
+  };
+
+  const [activePage, setActivePage] = useState(() => getDefaultPage(currentUser));
+
+  // Sync active page if user changes (e.g. login/logout in same tab)
+  useEffect(() => {
+    if (currentUser) {
+      setActivePage(prev => {
+        const roles = PAGE_ROLES[prev];
+        if (roles && !roles.includes(currentUser.perfil)) {
+          return getDefaultPage(currentUser);
+        }
+        return prev;
+      });
+    }
+  }, [currentUser]);
 
   if (loading) {
     return (

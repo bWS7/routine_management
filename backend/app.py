@@ -75,7 +75,12 @@ def create_app():
 
     @app.route('/uploads/<path:filename>')
     def uploads(filename):
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        folder = app.config['UPLOAD_FOLDER']
+        path = os.path.join(folder, filename)
+        if not os.path.exists(path):
+            app.logger.error(f"Arquivo não encontrado: {path}")
+            return jsonify({'erro': 'Arquivo não encontrado'}), 404
+        return send_from_directory(folder, filename)
 
     @app.route('/health')
     def health():
