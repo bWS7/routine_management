@@ -90,7 +90,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
     return roles.includes(perfil);
   };
 
-  const sidebarWidth = collapsed ? 'w-[60px]' : 'w-[200px]';
+  const sidebarWidth = collapsed ? 'w-[60px]' : 'w-[190px]';
 
   return (
     <>
@@ -109,7 +109,7 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
 
       {/* Sidebar */}
       <motion.aside
-        animate={{ width: collapsed ? 60 : 200 }}
+        animate={{ width: collapsed ? 60 : 190 }}
         transition={{ duration: 0.22, ease: 'easeInOut' }}
         className={`
           fixed top-0 left-0 h-full z-50 bg-sidebar-bg flex flex-col overflow-hidden
