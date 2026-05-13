@@ -39,7 +39,7 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-mude-em-producao')
     app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-mude-em-producao')
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False
-    app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads')
+    app.config['UPLOAD_FOLDER'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'uploads')
 
     app.config['SQLALCHEMY_DATABASE_URI'] = _get_database_url()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -80,7 +80,7 @@ def create_app():
         if not os.path.exists(path):
             app.logger.error(f"Arquivo não encontrado: {path}")
             return jsonify({'erro': 'Arquivo não encontrado'}), 404
-        return send_from_directory(folder, filename)
+        return send_from_directory(folder, filename, as_attachment=True)
 
     @app.route('/health')
     def health():
