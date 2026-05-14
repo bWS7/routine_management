@@ -268,16 +268,24 @@ def upload_evidencia(rid):
     if not allowed_file(arquivo.filename):
         return jsonify({'erro': 'Tipo de arquivo não permitido'}), 400
 
-    nome_seguro = secure_filename(arquivo.filename)
+    nome_seguro = secure_filename(arquivo.filename) or 'arquivo'
     nome_final = f"{rotina.id}_{uuid.uuid4().hex}_{nome_seguro}"
-    caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], nome_final)
-    arquivo.save(caminho)
+
+    conteudo = arquivo.read()
+
+    try:
+        caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], nome_final)
+        with open(caminho, 'wb') as f:
+            f.write(conteudo)
+    except Exception as e:
+        current_app.logger.warning(f"Não foi possível salvar arquivo no disco: {e}")
 
     evidencia = Evidencia(
         rotina_id=rotina.id,
         nome_arquivo=arquivo.filename,
         url=f"/uploads/{nome_final}",
-        tipo=arquivo.mimetype or 'arquivo'
+        tipo=arquivo.mimetype or 'arquivo',
+        conteudo=conteudo,
     )
     db.session.add(evidencia)
     db.session.flush()

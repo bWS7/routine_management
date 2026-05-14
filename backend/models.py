@@ -162,6 +162,7 @@ class Evidencia(db.Model):
     nome_arquivo = db.Column(db.String(255))
     url = db.Column(db.Text)
     tipo = db.Column(db.String(50))
+    conteudo = db.Column(db.LargeBinary, nullable=True)
     criado_em = db.Column(db.DateTime, default=get_now_br)
 
     def to_dict(self):

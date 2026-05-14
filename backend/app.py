@@ -64,6 +64,8 @@ def create_app():
     @app.route('/regionais')
     @app.route('/atividades')
     @app.route('/rotinas')
+    @app.route('/acompanhamento')
+    @app.route('/pendencias')
     @app.route('/perfil')
     @app.route('/auditoria')
     def frontend():
@@ -75,12 +77,30 @@ def create_app():
 
     @app.route('/uploads/<path:filename>')
     def uploads(filename):
+        from flask import Response
+        from backend.models import Evidencia
+
         folder = app.config['UPLOAD_FOLDER']
         path = os.path.join(folder, filename)
-        if not os.path.exists(path):
-            app.logger.error(f"Arquivo não encontrado: {path}")
-            return jsonify({'erro': 'Arquivo não encontrado'}), 404
-        return send_from_directory(folder, filename, as_attachment=True)
+
+        if os.path.exists(path):
+            return send_from_directory(folder, filename, as_attachment=True)
+
+        # Arquivo não está no disco (ex: container reiniciou) — serve do banco
+        evidencia = Evidencia.query.filter_by(url=f'/uploads/{filename}').first()
+        if evidencia and evidencia.conteudo:
+            nome_display = evidencia.nome_arquivo or filename
+            return Response(
+                evidencia.conteudo,
+                mimetype=evidencia.tipo or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{nome_display}"',
+                    'Content-Length': str(len(evidencia.conteudo)),
+                }
+            )
+
+        app.logger.error(f"Arquivo não encontrado no disco nem no banco: {filename}")
+        return jsonify({'erro': 'Arquivo não encontrado'}), 404
 
     @app.route('/health')
     def health():
@@ -127,23 +147,18 @@ def _seed_initial_data():
 def _ensure_runtime_columns():
     insp = inspect(db.engine)
     tabelas = set(insp.get_table_names())
-    if 'rotinas' not in tabelas:
-        return
 
-    existentes = {col['name'] for col in insp.get_columns('rotinas')}
-    desejadas = [
-        'checklist',
-        'relatorio',
-        'plano_semana',
-        'visitas_ativacoes',
-        'resultados_visita',
-        'carteira_ativa',
-        'metas_canal',
-    ]
+    if 'rotinas' in tabelas:
+        existentes = {col['name'] for col in insp.get_columns('rotinas')}
+        for coluna in ['checklist', 'relatorio', 'plano_semana', 'visitas_ativacoes', 'resultados_visita', 'carteira_ativa', 'metas_canal']:
+            if coluna not in existentes:
+                db.session.execute(text(f"ALTER TABLE rotinas ADD COLUMN {coluna} TEXT"))
 
-    for coluna in desejadas:
-        if coluna not in existentes:
-            db.session.execute(text(f"ALTER TABLE rotinas ADD COLUMN {coluna} TEXT"))
+    if 'evidencias' in tabelas:
+        existentes = {col['name'] for col in insp.get_columns('evidencias')}
+        if 'conteudo' not in existentes:
+            db.session.execute(text("ALTER TABLE evidencias ADD COLUMN conteudo BYTEA"))
+
     db.session.commit()
 
     # Catálogo de atividades
