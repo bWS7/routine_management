@@ -167,21 +167,6 @@ def _ensure_runtime_columns():
 app = create_app()
 
 
-@app.cli.command('cleanup-db')
-def cleanup_db():
-    """Remove todas as rotinas e usuários exceto bruno.alves@sousaaraujo.com.br."""
-    with app.app_context():
-        db.session.execute(text('DELETE FROM evidencias'))
-        db.session.execute(text('DELETE FROM historico_rotinas'))
-        db.session.execute(text('DELETE FROM audit_logs'))
-        db.session.execute(text('DELETE FROM rotinas'))
-        db.session.execute(text('UPDATE usuarios SET supervisor_id = NULL'))
-        result = db.session.execute(
-            text("DELETE FROM usuarios WHERE email != 'bruno.alves@sousaaraujo.com.br'")
-        )
-        db.session.commit()
-        print(f"Limpeza concluída. {result.rowcount} usuário(s) removido(s).")
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
