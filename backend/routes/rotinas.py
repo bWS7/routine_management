@@ -362,6 +362,7 @@ def minha_aderencia():
     me = get_current_user()
     periodo = request.args.get('periodo', 'semanal')
     data_ref = request.args.get('data_ref')
+    referencia = date.fromisoformat(data_ref) if data_ref else date.today()
     if periodo == 'todas':
         sem_inicio, sem_fim = get_periodo('semanal', referencia)
         quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
