@@ -16,7 +16,7 @@ export default function AcompanhamentoPage() {
   const [rotinas, setRotinas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [periodo, setPeriodo] = useState('semanal');
+  const [periodo, setPeriodo] = useState('todas');
   const [usuarioId, setUsuarioId] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [openId, setOpenId] = useState(null);
@@ -45,6 +45,7 @@ export default function AcompanhamentoPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <Select value={periodo} onChange={e => setPeriodo(e.target.value)} className="w-36">
+          <option value="todas">Todas</option>
           <option value="semanal">Semanal</option>
           <option value="quinzenal">Quinzenal</option>
           <option value="mensal">Mensal</option>

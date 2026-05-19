@@ -126,12 +126,27 @@ def listar():
     data_ref = request.args.get('data_ref')
 
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
-    inicio, fim = get_periodo(periodo, referencia)
 
-    query = Rotina.query.join(Usuario).filter(
-        Rotina.periodo_inicio >= inicio,
-        Rotina.periodo_fim <= fim
-    )
+    if periodo == 'todas':
+        sem_inicio, sem_fim = get_periodo('semanal', referencia)
+        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
+        men_inicio, men_fim = get_periodo('mensal', referencia)
+
+        from sqlalchemy import or_, and_
+        query = Rotina.query.join(Usuario).filter(
+            or_(
+                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
+                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
+                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
+            )
+        )
+    else:
+        inicio, fim = get_periodo(periodo, referencia)
+        query = Rotina.query.join(Usuario).filter(
+            Rotina.periodo_inicio >= inicio,
+            Rotina.periodo_fim <= fim,
+            Rotina.periodicidade == periodo
+        )
 
     # Visibilidade por hierarquia
     if me.perfil == 'admin':
@@ -347,14 +362,29 @@ def minha_aderencia():
     me = get_current_user()
     periodo = request.args.get('periodo', 'semanal')
     data_ref = request.args.get('data_ref')
-    referencia = date.fromisoformat(data_ref) if data_ref else date.today()
-    inicio, fim = get_periodo(periodo, referencia)
+    if periodo == 'todas':
+        sem_inicio, sem_fim = get_periodo('semanal', referencia)
+        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
+        men_inicio, men_fim = get_periodo('mensal', referencia)
 
-    rotinas = Rotina.query.filter(
-        Rotina.usuario_id == me.id,
-        Rotina.periodo_inicio >= inicio,
-        Rotina.periodo_fim <= fim
-    ).all()
+        from sqlalchemy import or_, and_
+        rotinas = Rotina.query.filter(
+            Rotina.usuario_id == me.id,
+            or_(
+                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
+                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
+                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
+            )
+        ).all()
+        inicio, fim = men_inicio, men_fim
+    else:
+        inicio, fim = get_periodo(periodo, referencia)
+        rotinas = Rotina.query.filter(
+            Rotina.usuario_id == me.id,
+            Rotina.periodo_inicio >= inicio,
+            Rotina.periodo_fim <= fim,
+            Rotina.periodicidade == periodo
+        ).all()
 
     total = len(rotinas)
     concluidas = sum(1 for r in rotinas if r.status == 'concluida')
@@ -391,12 +421,27 @@ def exportar_rotinas():
     periodo = request.args.get('periodo', 'semanal')
     data_ref = request.args.get('data_ref')
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
-    inicio, fim = get_periodo(periodo, referencia)
 
-    query = Rotina.query.join(Usuario).filter(
-        Rotina.periodo_inicio >= inicio,
-        Rotina.periodo_fim <= fim
-    )
+    if periodo == 'todas':
+        sem_inicio, sem_fim = get_periodo('semanal', referencia)
+        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
+        men_inicio, men_fim = get_periodo('mensal', referencia)
+
+        from sqlalchemy import or_, and_
+        query = Rotina.query.join(Usuario).filter(
+            or_(
+                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
+                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
+                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
+            )
+        )
+    else:
+        inicio, fim = get_periodo(periodo, referencia)
+        query = Rotina.query.join(Usuario).filter(
+            Rotina.periodo_inicio >= inicio,
+            Rotina.periodo_fim <= fim,
+            Rotina.periodicidade == periodo
+        )
 
     if me.perfil == 'admin':
         if regional_id:
@@ -450,13 +495,30 @@ def dashboard():
     data_ref = request.args.get('data_ref')
 
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
-    inicio, fim = get_periodo(periodo, referencia)
 
-    query = Rotina.query.join(Usuario).filter(
-        Rotina.periodo_inicio >= inicio,
-        Rotina.periodo_fim <= fim,
-        Usuario.status == 'ativo'
-    )
+    if periodo == 'todas':
+        sem_inicio, sem_fim = get_periodo('semanal', referencia)
+        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
+        men_inicio, men_fim = get_periodo('mensal', referencia)
+        inicio, fim = men_inicio, men_fim
+
+        from sqlalchemy import or_, and_
+        query = Rotina.query.join(Usuario).filter(
+            Usuario.status == 'ativo',
+            or_(
+                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
+                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
+                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
+            )
+        )
+    else:
+        inicio, fim = get_periodo(periodo, referencia)
+        query = Rotina.query.join(Usuario).filter(
+            Rotina.periodo_inicio >= inicio,
+            Rotina.periodo_fim <= fim,
+            Rotina.periodicidade == periodo,
+            Usuario.status == 'ativo'
+        )
 
     if me.perfil == 'sr':
         query = query.filter(Usuario.regional_id == me.regional_id)
@@ -563,13 +625,29 @@ def exportar_dashboard():
     periodo = request.args.get('periodo', 'semanal')
     data_ref = request.args.get('data_ref')
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
-    inicio, fim = get_periodo(periodo, referencia)
 
-    query = Rotina.query.join(Usuario).filter(
-        Rotina.periodo_inicio >= inicio,
-        Rotina.periodo_fim <= fim,
-        Usuario.status == 'ativo'
-    )
+    if periodo == 'todas':
+        sem_inicio, sem_fim = get_periodo('semanal', referencia)
+        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
+        men_inicio, men_fim = get_periodo('mensal', referencia)
+
+        from sqlalchemy import or_, and_
+        query = Rotina.query.join(Usuario).filter(
+            Usuario.status == 'ativo',
+            or_(
+                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
+                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
+                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
+            )
+        )
+    else:
+        inicio, fim = get_periodo(periodo, referencia)
+        query = Rotina.query.join(Usuario).filter(
+            Rotina.periodo_inicio >= inicio,
+            Rotina.periodo_fim <= fim,
+            Rotina.periodicidade == periodo,
+            Usuario.status == 'ativo'
+        )
     if me.perfil == 'sr':
         query = query.filter(Usuario.regional_id == me.regional_id)
     elif regional_id:

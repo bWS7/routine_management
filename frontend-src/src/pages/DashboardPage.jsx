@@ -81,7 +81,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [periodo, setPeriodo] = useState('semanal');
+  const [periodo, setPeriodo] = useState('todas');
   const [regionalId, setRegionalId] = useState('');
   const [regionais, setRegionais] = useState([]);
   const [showGerarModal, setShowGerarModal] = useState(false);
@@ -121,6 +121,7 @@ export default function DashboardPage() {
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
         <Select value={periodo} onChange={e => setPeriodo(e.target.value)} className="w-36">
+          <option value="todas">Todas</option>
           <option value="semanal">Semanal</option>
           <option value="quinzenal">Quinzenal</option>
           <option value="mensal">Mensal</option>
