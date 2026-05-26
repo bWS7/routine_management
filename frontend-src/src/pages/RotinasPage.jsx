@@ -171,9 +171,9 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   const [carteira, setCarteira] = useState('');
   const [metas, setMetas] = useState('');
 
-  const loadRotina = useCallback(async () => {
+  const loadRotina = useCallback(async (onlyMetadata = false) => {
     if (!rotinaId) return;
-    setLoading(true);
+    if (!onlyMetadata) setLoading(true);
     const [r, h] = await Promise.all([
       apiFetch(`/api/rotinas/${rotinaId}`),
       apiFetch(`/api/rotinas/${rotinaId}/historico`),
@@ -181,19 +181,22 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
     if (r?.ok) {
       const d = r.data;
       setRotina(d);
-      setStatus(d.status);
-      setComentario(d.comentario || '');
-      setJustificativa(d.justificativa || '');
-      setAcaoCorretiva(d.acao_corretiva || '');
-      setResponsavel(d.responsavel_acao || '');
-      setNovoPrazo(d.novo_prazo || '');
-      setPlanoSemana(d.plano_semana || '');
-      setChecklist(d.checklist || '');
-      setRelatorio(d.relatorio || '');
-      setVisitas(d.visitas_ativacoes || '');
-      setResultados(d.resultados_visita || '');
-      setCarteira(d.carteira_ativa || '');
-      setMetas(d.metas_canal || '');
+
+      if (!onlyMetadata) {
+        setStatus(d.status);
+        setComentario(d.comentario || '');
+        setJustificativa(d.justificativa || '');
+        setAcaoCorretiva(d.acao_corretiva || '');
+        setResponsavel(d.responsavel_acao || '');
+        setNovoPrazo(d.novo_prazo || '');
+        setPlanoSemana(d.plano_semana || '');
+        setChecklist(d.checklist || '');
+        setRelatorio(d.relatorio || '');
+        setVisitas(d.visitas_ativacoes || '');
+        setResultados(d.resultados_visita || '');
+        setCarteira(d.carteira_ativa || '');
+        setMetas(d.metas_canal || '');
+      }
     }
     if (h?.ok) setHistorico(h.data);
     setLoading(false);
@@ -336,7 +339,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
               evidencias={rotina.evidencias}
               rotinaId={rotinaId}
               canEdit={canEdit}
-              onReload={loadRotina}
+              onReload={() => loadRotina(true)}
             />
           </div>
 
