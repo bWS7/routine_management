@@ -125,9 +125,9 @@ export default function UsuariosPage() {
   };
 
   const deleteUser = async (u) => {
-    if (!confirm('Deseja inativar este usuário?')) return;
+    if (!confirm(`Deseja excluir definitivamente o usuário "${u.nome}"? Esta ação não pode ser desfeita.`)) return;
     const r = await apiFetch(`/api/usuarios/${u.id}`, { method: 'DELETE' });
-    if (r?.ok) { toast('Usuário inativado!', 'success'); load(); }
+    if (r?.ok) { toast('Usuário excluído!', 'success'); load(); }
     else toast(r?.data?.erro || 'Erro', 'error');
   };
 
@@ -184,7 +184,7 @@ export default function UsuariosPage() {
                         <button onClick={() => toggleStatus(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-warning hover:bg-yellow-50 transition-colors" title="Alterar status">
                           <RefreshCw size={15} />
                         </button>
-                        <button onClick={() => deleteUser(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-error hover:bg-red-50 transition-colors" title="Inativar">
+                        <button onClick={() => deleteUser(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-error hover:bg-red-50 transition-colors" title="Excluir usuário">
                           <Trash2 size={15} />
                         </button>
                       </div>

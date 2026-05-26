@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.audit import log_audit, diff_payload
-from backend.models import Usuario
+from backend.models import Usuario, Rotina, HistoricoRotina, Evidencia, AuditLog
 from backend.constants import PERFIS_USUARIO
 from backend.extensions import db
 
@@ -23,6 +23,18 @@ def get_current_user():
 
 def require_admin(u):
     return u.perfil == 'admin'
+
+
+def remove_uploaded_file(url):
+    if not url or not url.startswith('/uploads/'):
+        return
+
+    relative_path = url.split('/uploads/', 1)[1]
+    upload_folder = os.path.abspath(current_app.config['UPLOAD_FOLDER'])
+    file_path = os.path.abspath(os.path.join(upload_folder, relative_path))
+
+    if os.path.commonpath([upload_folder, file_path]) == upload_folder and os.path.exists(file_path):
+        os.remove(file_path)
 
 
 @usuarios_bp.route('/', methods=['GET'])
@@ -138,11 +150,41 @@ def deletar(uid):
     me = get_current_user()
     if not require_admin(me):
         return jsonify({'erro': 'Acesso negado'}), 403
+    if me.id == uid:
+        return jsonify({'erro': 'Não é possível excluir o próprio usuário'}), 400
+
     u = Usuario.query.get_or_404(uid)
-    u.status = 'inativo'
-    log_audit(me.id, 'usuario', u.id, 'excluir', {'status': 'inativo', 'email': u.email})
+
+    rotina_ids = [
+        rotina_id for (rotina_id,) in db.session.query(Rotina.id)
+        .filter(Rotina.usuario_id == u.id)
+        .all()
+    ]
+
+    if rotina_ids:
+        evidencias = Evidencia.query.filter(Evidencia.rotina_id.in_(rotina_ids)).all()
+        for evidencia in evidencias:
+            remove_uploaded_file(evidencia.url)
+
+        Evidencia.query.filter(Evidencia.rotina_id.in_(rotina_ids)).delete(synchronize_session=False)
+        HistoricoRotina.query.filter(HistoricoRotina.rotina_id.in_(rotina_ids)).delete(synchronize_session=False)
+        Rotina.query.filter(Rotina.id.in_(rotina_ids)).delete(synchronize_session=False)
+
+    HistoricoRotina.query.filter(HistoricoRotina.usuario_id == u.id).delete(synchronize_session=False)
+    Usuario.query.filter(Usuario.supervisor_id == u.id).update({'supervisor_id': None}, synchronize_session=False)
+    AuditLog.query.filter(AuditLog.usuario_id == u.id).update({'usuario_id': None}, synchronize_session=False)
+    remove_uploaded_file(u.foto_url)
+
+    detalhes = {
+        'nome': u.nome,
+        'email': u.email,
+        'perfil': u.perfil,
+        'rotinas_removidas': len(rotina_ids),
+    }
+    log_audit(me.id, 'usuario', u.id, 'excluir', detalhes)
+    db.session.delete(u)
     db.session.commit()
-    return jsonify({'mensagem': 'Usuário inativado'})
+    return jsonify({'mensagem': 'Usuário excluído'})
 
 
 @usuarios_bp.route('/perfil/foto', methods=['POST'])
