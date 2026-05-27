@@ -393,7 +393,7 @@ def minha_aderencia():
         ).all()
 
     total = len(rotinas)
-    concluidas = sum(1 for r in rotinas if r.status == 'concluida')
+    concluidas = sum(1 for r in rotinas if r.status == 'concluida' and r.status_aprovacao != 'reprovada')
     percentual = round((concluidas / total * 100), 1) if total else 0
     return jsonify({
         'periodo': periodo,
@@ -536,7 +536,7 @@ def dashboard():
 
     rotinas = query.all()
     total = len(rotinas)
-    concluidas = sum(1 for r in rotinas if r.status == 'concluida')
+    concluidas = sum(1 for r in rotinas if r.status == 'concluida' and r.status_aprovacao != 'reprovada')
     nao_realizadas = sum(1 for r in rotinas if r.status == 'nao_realizada')
     em_andamento = sum(1 for r in rotinas if r.status == 'em_andamento')
     nao_iniciadas = sum(1 for r in rotinas if r.status == 'nao_iniciada')
@@ -550,7 +550,7 @@ def dashboard():
         if p not in por_perfil:
             por_perfil[p] = {'total': 0, 'concluidas': 0}
         por_perfil[p]['total'] += 1
-        if r.status == 'concluida':
+        if r.status == 'concluida' and r.status_aprovacao != 'reprovada':
             por_perfil[p]['concluidas'] += 1
 
     for p in por_perfil:
@@ -587,7 +587,7 @@ def dashboard():
                 'concluidas': 0
             }
         por_usuario[uid]['total'] += 1
-        if r.status == 'concluida':
+        if r.status == 'concluida' and r.status_aprovacao != 'reprovada':
             por_usuario[uid]['concluidas'] += 1
 
     ranking = []
