@@ -712,7 +712,8 @@ def aprovar_atividade(rid):
         # Admin pode aprovar qualquer coisa
         pass
     elif me.perfil == 'sr':
-        # Superintendente aprova atividades de sua regional (exceto a dele)
+        if rotina.usuario_id == me.id:
+            return jsonify({'erro': 'Você não pode aprovar suas próprias atividades'}), 403
         if rotina.usuario.regional_id != me.regional_id:
             return jsonify({'erro': 'Você só pode aprovar atividades de sua regional'}), 403
     else:
@@ -769,7 +770,8 @@ def reprovar_atividade(rid):
     if me.perfil == 'admin':
         pass
     elif me.perfil == 'sr':
-        # Superintendente reprova atividades de sua regional
+        if rotina.usuario_id == me.id:
+            return jsonify({'erro': 'Você não pode reprovar suas próprias atividades'}), 403
         if rotina.usuario.regional_id != me.regional_id:
             return jsonify({'erro': 'Você só pode reprovar atividades de sua regional'}), 403
     else:
@@ -839,40 +841,28 @@ def listar_aprovacoes(rid):
 @rotinas_bp.route('/para-aprovar', methods=['GET'])
 @jwt_required()
 def atividades_para_aprovar():
-    """
-    Retorna atividades pendentes de aprovação para Superintendentes
-    e atividades do próprio Superintendente para seu Supervisor aprovar
-    """
     me = get_current_user()
-    
+    # status_aprovacao=todas retorna pendentes+aprovadas+reprovadas; default=pendente
+    filtro_status = request.args.get('status_aprovacao', 'pendente')
+
+    from sqlalchemy import or_, and_
+
     if me.perfil == 'admin':
-        # Admin vê todas as atividades pendentes
-        rotinas = Rotina.query.filter(
-            Rotina.status_aprovacao == 'pendente',
-            Rotina.status == 'concluida'
-        ).order_by(Rotina.data_conclusao.desc()).all()
+        query = Rotina.query.filter(Rotina.status == 'concluida')
+        if filtro_status != 'todas':
+            query = query.filter(Rotina.status_aprovacao == filtro_status)
+        rotinas = query.order_by(Rotina.data_conclusao.desc()).all()
     elif me.perfil == 'sr':
-        # Superintendente vê atividades de sua regional pendentes E suas próprias (para seu supervisor)
-        from sqlalchemy import or_, and_
-        rotinas = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            or_(
-                # Atividades de sua regional para sua aprovação
-                and_(
-                    Usuario.regional_id == me.regional_id,
-                    Rotina.status_aprovacao == 'pendente',
-                    Rotina.status == 'concluida',
-                    Rotina.usuario_id != me.id
-                ),
-                # Suas atividades para o supervisor aprovar
-                and_(
-                    Rotina.usuario_id == me.id,
-                    Rotina.status_aprovacao == 'pendente',
-                    Rotina.status == 'concluida'
-                )
-            )
-        ).order_by(Rotina.data_conclusao.desc()).all()
+        # SR vê atividades concluídas da sua regional (exceto as próprias, que só o supervisor aprova)
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.regional_id == me.regional_id,
+            Rotina.status == 'concluida',
+            Rotina.usuario_id != me.id
+        )
+        if filtro_status != 'todas':
+            query = query.filter(Rotina.status_aprovacao == filtro_status)
+        rotinas = query.order_by(Rotina.data_conclusao.desc()).all()
     else:
-        # Outros perfis não podem aprovar
         return jsonify({'erro': 'Apenas Administrador e Superintendente podem visualizar atividades para aprovação'}), 403
-    
+
     return jsonify([r.to_dict() for r in rotinas])
