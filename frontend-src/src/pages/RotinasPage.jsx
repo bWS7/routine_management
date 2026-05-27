@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X } from 'lucide-react';
+import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw } from 'lucide-react';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -229,6 +229,17 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
                   rotina?.usuario_id === currentUser?.id ||
                   currentUser?.perfil === 'sr';
 
+  const canReenviar = rotina?.status_aprovacao === 'reprovada' &&
+                      (rotina?.usuario_id === currentUser?.id || currentUser?.perfil === 'admin');
+
+  const reenviar = async () => {
+    setSaving(true);
+    const r = await apiFetch(`/api/rotinas/${rotinaId}/reenviar`, { method: 'POST' });
+    if (r?.ok) { toast('Atividade reenviada para aprovação!', 'success'); onSaved?.(); onClose(); }
+    else toast(r?.data?.erro || 'Erro ao reenviar', 'error');
+    setSaving(false);
+  };
+
   const showJustificativa = status === 'nao_realizada' || status === 'em_andamento';
   const showAcao = status === 'nao_realizada';
 
@@ -258,10 +269,17 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
       title={loading ? 'Carregando...' : rotina?.atividade_nome}
       size="lg"
       footer={
-        canEdit && !loading ? (
+        !loading ? (
           <>
             <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={save} loading={saving}>Salvar Alterações</Button>
+            {canReenviar && (
+              <Button icon={RefreshCw} onClick={reenviar} loading={saving} className="bg-amber-500 hover:bg-amber-600 text-white">
+                Reenviar para Aprovação
+              </Button>
+            )}
+            {canEdit && (
+              <Button onClick={save} loading={saving}>Salvar Alterações</Button>
+            )}
           </>
         ) : (
           <Button variant="secondary" onClick={onClose}>Fechar</Button>

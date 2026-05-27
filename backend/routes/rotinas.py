@@ -838,6 +838,41 @@ def listar_aprovacoes(rid):
     return jsonify([a.to_dict() for a in aprovacoes])
 
 
+@rotinas_bp.route('/<int:rid>/reenviar', methods=['POST'])
+@jwt_required()
+def reenviar_para_aprovacao(rid):
+    me = get_current_user()
+    rotina = Rotina.query.get_or_404(rid)
+
+    if rotina.usuario_id != me.id and me.perfil != 'admin':
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    if rotina.status_aprovacao != 'reprovada':
+        return jsonify({'erro': 'Apenas atividades reprovadas podem ser reenviadas'}), 400
+
+    rotina.status_aprovacao = 'pendente'
+    rotina.aprovador_id = None
+    rotina.data_aprovacao = None
+    rotina.motivo_reprovacao = None
+
+    add_rotina_history(
+        rotina,
+        me.id,
+        'reenvio_para_aprovacao',
+        observacao='Atividade reenviada para aprovação pelo colaborador',
+        status_anterior=rotina.status,
+        status_novo=rotina.status
+    )
+
+    log_audit(me.id, 'rotina_aprovacao', rotina.id, 'reenviar', {
+        'rotina_id': rotina.id,
+        'usuario_id': rotina.usuario_id,
+    })
+
+    db.session.commit()
+    return jsonify(rotina.to_dict())
+
+
 @rotinas_bp.route('/para-aprovar', methods=['GET'])
 @jwt_required()
 def atividades_para_aprovar():
