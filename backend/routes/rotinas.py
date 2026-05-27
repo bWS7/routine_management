@@ -133,7 +133,7 @@ def listar():
         men_inicio, men_fim = get_periodo('mensal', referencia)
 
         from sqlalchemy import or_, and_
-        query = Rotina.query.join(Usuario).filter(
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             or_(
                 and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
                 and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
@@ -142,7 +142,7 @@ def listar():
         )
     else:
         inicio, fim = get_periodo(periodo, referencia)
-        query = Rotina.query.join(Usuario).filter(
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Rotina.periodo_inicio >= inicio,
             Rotina.periodo_fim <= fim,
             Rotina.periodicidade == periodo
@@ -434,7 +434,7 @@ def exportar_rotinas():
         men_inicio, men_fim = get_periodo('mensal', referencia)
 
         from sqlalchemy import or_, and_
-        query = Rotina.query.join(Usuario).filter(
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             or_(
                 and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
                 and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
@@ -443,7 +443,7 @@ def exportar_rotinas():
         )
     else:
         inicio, fim = get_periodo(periodo, referencia)
-        query = Rotina.query.join(Usuario).filter(
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Rotina.periodo_inicio >= inicio,
             Rotina.periodo_fim <= fim,
             Rotina.periodicidade == periodo
@@ -509,7 +509,7 @@ def dashboard():
         inicio, fim = men_inicio, men_fim
 
         from sqlalchemy import or_, and_
-        query = Rotina.query.join(Usuario).filter(
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Usuario.status == 'ativo',
             or_(
                 and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
@@ -519,7 +519,7 @@ def dashboard():
         )
     else:
         inicio, fim = get_periodo(periodo, referencia)
-        query = Rotina.query.join(Usuario).filter(
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Rotina.periodo_inicio >= inicio,
             Rotina.periodo_fim <= fim,
             Rotina.periodicidade == periodo,
@@ -638,7 +638,7 @@ def exportar_dashboard():
         men_inicio, men_fim = get_periodo('mensal', referencia)
 
         from sqlalchemy import or_, and_
-        query = Rotina.query.join(Usuario).filter(
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Usuario.status == 'ativo',
             or_(
                 and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
@@ -648,7 +648,7 @@ def exportar_dashboard():
         )
     else:
         inicio, fim = get_periodo(periodo, referencia)
-        query = Rotina.query.join(Usuario).filter(
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Rotina.periodo_inicio >= inicio,
             Rotina.periodo_fim <= fim,
             Rotina.periodicidade == periodo,
@@ -682,7 +682,7 @@ def exportar_dashboard():
 def pendencias():
     me = get_current_user()
 
-    query = Rotina.query.join(Usuario).join(AtividadeCatalogo).filter(
+    query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).join(AtividadeCatalogo).filter(
         Rotina.status.in_(['nao_iniciada', 'em_andamento']),
         AtividadeCatalogo.obrigatoria == True,
         Rotina.periodo_fim < date.today()
@@ -854,7 +854,7 @@ def atividades_para_aprovar():
     elif me.perfil == 'sr':
         # Superintendente vê atividades de sua regional pendentes E suas próprias (para seu supervisor)
         from sqlalchemy import or_, and_
-        rotinas = Rotina.query.join(Usuario).filter(
+        rotinas = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             or_(
                 # Atividades de sua regional para sua aprovação
                 and_(
