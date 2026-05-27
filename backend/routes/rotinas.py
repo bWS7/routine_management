@@ -198,8 +198,13 @@ def atualizar(rid):
         r.status = data['status']
         if data['status'] == 'concluida' and not r.data_conclusao:
             r.data_conclusao = get_now_br()
+            # Definir status de aprovação como pendente quando a atividade é concluída
+            r.status_aprovacao = 'pendente'
         elif data['status'] != 'concluida':
             r.data_conclusao = None
+            # Se o status muda de concluída para outra coisa, resetar o status de aprovação
+            if status_anterior == 'concluida' and r.status_aprovacao == 'pendente':
+                r.status_aprovacao = 'pendente'
 
     if 'comentario' in data:
         r.comentario = data['comentario']
@@ -689,4 +694,185 @@ def pendencias():
         query = query.filter(Rotina.usuario_id == me.id)
 
     rotinas = query.order_by(Rotina.periodo_fim).all()
+    return jsonify([r.to_dict() for r in rotinas])
+
+
+@rotinas_bp.route('/<int:rid>/aprovar', methods=['POST'])
+@jwt_required()
+def aprovar_atividade(rid):
+    me = get_current_user()
+    rotina = Rotina.query.get_or_404(rid)
+    
+    # Verificar se o usuário tem permissão para aprovar
+    # Superintendente aprova atividades da sua regional
+    # Supervisor aprova atividades do seu superintendente
+    # Admin aprova qualquer atividade
+    
+    if me.perfil == 'admin':
+        # Admin pode aprovar qualquer coisa
+        pass
+    elif me.perfil == 'sr':
+        # Superintendente aprova atividades de sua regional (exceto a dele)
+        if rotina.usuario.regional_id != me.regional_id:
+            return jsonify({'erro': 'Você só pode aprovar atividades de sua regional'}), 403
+    else:
+        return jsonify({'erro': 'Apenas Administrador e Superintendente podem aprovar atividades'}), 403
+    
+    # Verificar se a atividade está pendente de aprovação
+    if rotina.status_aprovacao != 'pendente':
+        return jsonify({'erro': f'Atividade já foi {rotina.status_aprovacao}'}), 400
+    
+    data = request.get_json() or {}
+    
+    # Atualizar status de aprovação
+    rotina.status_aprovacao = 'aprovada'
+    rotina.aprovador_id = me.id
+    rotina.data_aprovacao = get_now_br()
+    
+    # Registrar no histórico de aprovações
+    from backend.models import AprovacaoRotina
+    aprovacao = AprovacaoRotina(
+        rotina_id=rotina.id,
+        aprovador_id=me.id,
+        acao='aprovada',
+        motivo=data.get('motivo')
+    )
+    db.session.add(aprovacao)
+    
+    # Adicionar no histórico de rotinas
+    add_rotina_history(
+        rotina,
+        me.id,
+        'aprovacao_atividade',
+        observacao=f'Atividade aprovada por {me.nome}',
+        status_anterior=rotina.status,
+        status_novo=rotina.status
+    )
+    
+    log_audit(me.id, 'rotina_aprovacao', rotina.id, 'aprovar', {
+        'rotina_id': rotina.id,
+        'usuario_id': rotina.usuario_id,
+        'status_aprovacao': 'aprovada'
+    })
+    
+    db.session.commit()
+    return jsonify(rotina.to_dict())
+
+
+@rotinas_bp.route('/<int:rid>/reprovar', methods=['POST'])
+@jwt_required()
+def reprovar_atividade(rid):
+    me = get_current_user()
+    rotina = Rotina.query.get_or_404(rid)
+    
+    # Verificar se o usuário tem permissão para reprovar
+    if me.perfil == 'admin':
+        pass
+    elif me.perfil == 'sr':
+        # Superintendente reprova atividades de sua regional
+        if rotina.usuario.regional_id != me.regional_id:
+            return jsonify({'erro': 'Você só pode reprovar atividades de sua regional'}), 403
+    else:
+        return jsonify({'erro': 'Apenas Administrador e Superintendente podem reprovar atividades'}), 403
+    
+    # Verificar se a atividade está pendente de aprovação
+    if rotina.status_aprovacao != 'pendente':
+        return jsonify({'erro': f'Atividade já foi {rotina.status_aprovacao}'}), 400
+    
+    data = request.get_json()
+    motivo = data.get('motivo')
+    
+    if not motivo:
+        return jsonify({'erro': 'Motivo da reprovação é obrigatório'}), 400
+    
+    # Atualizar status de aprovação
+    rotina.status_aprovacao = 'reprovada'
+    rotina.aprovador_id = me.id
+    rotina.data_aprovacao = get_now_br()
+    rotina.motivo_reprovacao = motivo
+    
+    # Registrar no histórico de aprovações
+    from backend.models import AprovacaoRotina
+    aprovacao = AprovacaoRotina(
+        rotina_id=rotina.id,
+        aprovador_id=me.id,
+        acao='reprovada',
+        motivo=motivo
+    )
+    db.session.add(aprovacao)
+    
+    # Adicionar no histórico de rotinas
+    add_rotina_history(
+        rotina,
+        me.id,
+        'reprovacao_atividade',
+        observacao=f'Atividade reprovada por {me.nome}: {motivo}',
+        status_anterior=rotina.status,
+        status_novo=rotina.status
+    )
+    
+    log_audit(me.id, 'rotina_aprovacao', rotina.id, 'reprovar', {
+        'rotina_id': rotina.id,
+        'usuario_id': rotina.usuario_id,
+        'status_aprovacao': 'reprovada',
+        'motivo': motivo
+    })
+    
+    db.session.commit()
+    return jsonify(rotina.to_dict())
+
+
+@rotinas_bp.route('/<int:rid>/aprovacoes', methods=['GET'])
+@jwt_required()
+def listar_aprovacoes(rid):
+    me = get_current_user()
+    rotina = Rotina.query.get_or_404(rid)
+    
+    if not can_access_rotina(me, rotina):
+        return jsonify({'erro': 'Acesso negado'}), 403
+    
+    from backend.models import AprovacaoRotina
+    aprovacoes = AprovacaoRotina.query.filter_by(rotina_id=rid).order_by(AprovacaoRotina.criado_em.desc()).all()
+    return jsonify([a.to_dict() for a in aprovacoes])
+
+
+@rotinas_bp.route('/para-aprovar', methods=['GET'])
+@jwt_required()
+def atividades_para_aprovar():
+    """
+    Retorna atividades pendentes de aprovação para Superintendentes
+    e atividades do próprio Superintendente para seu Supervisor aprovar
+    """
+    me = get_current_user()
+    
+    if me.perfil == 'admin':
+        # Admin vê todas as atividades pendentes
+        rotinas = Rotina.query.filter(
+            Rotina.status_aprovacao == 'pendente',
+            Rotina.status == 'concluida'
+        ).order_by(Rotina.data_conclusao.desc()).all()
+    elif me.perfil == 'sr':
+        # Superintendente vê atividades de sua regional pendentes E suas próprias (para seu supervisor)
+        from sqlalchemy import or_, and_
+        rotinas = Rotina.query.join(Usuario).filter(
+            or_(
+                # Atividades de sua regional para sua aprovação
+                and_(
+                    Usuario.regional_id == me.regional_id,
+                    Rotina.status_aprovacao == 'pendente',
+                    Rotina.status == 'concluida',
+                    Rotina.usuario_id != me.id
+                ),
+                # Suas atividades para o supervisor aprovar
+                and_(
+                    Rotina.usuario_id == me.id,
+                    Rotina.status_aprovacao == 'pendente',
+                    Rotina.status == 'concluida'
+                )
+            )
+        ).order_by(Rotina.data_conclusao.desc()).all()
+    else:
+        # Outros perfis não podem aprovar
+        return jsonify({'erro': 'Apenas Administrador e Superintendente podem visualizar atividades para aprovação'}), 403
+    
     return jsonify([r.to_dict() for r in rotinas])

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X } from 'lucide-react';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -29,8 +29,16 @@ const STATUS_ICONS = {
   nao_realizada: { Icon: XCircle,       color: 'text-error' },
 };
 
+const STATUS_APROVACAO_ICONS = {
+  pendente:    { Icon: AlertTriangle, color: 'text-warning', label: 'Pendente de Aprovação' },
+  aprovada:    { Icon: Check,         color: 'text-success', label: 'Aprovada' },
+  reprovada:   { Icon: X,             color: 'text-error',   label: 'Reprovada' },
+};
+
 function RotinaCard({ rotina, onClick }) {
   const { Icon, color } = STATUS_ICONS[rotina.status] || STATUS_ICONS.nao_iniciada;
+  const aprovacao = rotina.status === 'concluida' ? STATUS_APROVACAO_ICONS[rotina.status_aprovacao] : null;
+  
   return (
     <button
       onClick={onClick}
@@ -39,7 +47,14 @@ function RotinaCard({ rotina, onClick }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
-          <Icon size={18} className={`mt-0.5 shrink-0 ${color}`} />
+          <div className="relative">
+            <Icon size={18} className={`mt-0.5 shrink-0 ${color}`} />
+            {aprovacao && (
+              <div className="absolute -top-1 -right-1 tooltip group-hover:tooltip-show" title={aprovacao.label}>
+                <aprovacao.Icon size={14} className={`${aprovacao.color}`} />
+              </div>
+            )}
+          </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-gray-900 group-hover:text-primary-700 transition-colors truncate">
               {rotina.atividade_nome}
@@ -50,6 +65,16 @@ function RotinaCard({ rotina, onClick }) {
               {rotina.atividade_obrigatoria && (
                 <span className="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-600 font-medium">Obrigatória</span>
               )}
+              {rotina.status === 'concluida' && rotina.status_aprovacao && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  rotina.status_aprovacao === 'aprovada' ? 'bg-green-50 text-green-600' :
+                  rotina.status_aprovacao === 'reprovada' ? 'bg-red-50 text-red-600' :
+                  'bg-yellow-50 text-yellow-600'
+                }`}>
+                  {rotina.status_aprovacao === 'pendente' ? 'Aguardando Aprovação' :
+                   rotina.status_aprovacao === 'aprovada' ? 'Aprovada' : 'Reprovada'}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -58,11 +83,25 @@ function RotinaCard({ rotina, onClick }) {
           {rotina.data_conclusao && (
             <div className="text-xs text-success-dark mt-1">✓ {fmtDatetime(rotina.data_conclusao)}</div>
           )}
+          {rotina.status === 'concluida' && rotina.data_aprovacao && (
+            <div className={`text-xs font-medium mt-1 ${
+              rotina.status_aprovacao === 'aprovada' ? 'text-green-600' :
+              rotina.status_aprovacao === 'reprovada' ? 'text-red-600' : 'text-yellow-600'
+            }`}>
+              {rotina.status_aprovacao === 'aprovada' ? '✓ Aprovada' :
+               rotina.status_aprovacao === 'reprovada' ? '✗ Reprovada' : '⏳ Pendente'}
+            </div>
+          )}
         </div>
       </div>
       {rotina.comentario && (
         <div className="mt-2.5 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 line-clamp-2">
           {rotina.comentario}
+        </div>
+      )}
+      {rotina.status_aprovacao === 'reprovada' && rotina.motivo_reprovacao && (
+        <div className="mt-2.5 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 line-clamp-2">
+          <strong>Motivo da reprovação:</strong> {rotina.motivo_reprovacao}
         </div>
       )}
     </button>
@@ -271,6 +310,39 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
               <div className="text-xs font-medium text-gray-500 mb-1">Tipo de Evidência</div>
               <div className="text-sm text-gray-500">{rotina.tipo_evidencia || '—'}</div>
             </div>
+            {rotina.status === 'concluida' && rotina.status_aprovacao && (
+              <>
+                <div>
+                  <div className="text-xs font-medium text-gray-500 mb-1">Status Aprovação</div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    rotina.status_aprovacao === 'aprovada' ? 'bg-green-50 text-green-600' :
+                    rotina.status_aprovacao === 'reprovada' ? 'bg-red-50 text-red-600' :
+                    'bg-yellow-50 text-yellow-600'
+                  }`}>
+                    {rotina.status_aprovacao === 'pendente' ? 'Aguardando' :
+                     rotina.status_aprovacao === 'aprovada' ? 'Aprovada' : 'Reprovada'}
+                  </span>
+                </div>
+                {rotina.data_aprovacao && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-1">Data Aprovação</div>
+                    <div className="text-sm text-gray-700">{fmtDatetime(rotina.data_aprovacao)}</div>
+                  </div>
+                )}
+                {rotina.aprovador_nome && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-1">Aprovador</div>
+                    <div className="text-sm text-gray-700">{rotina.aprovador_nome}</div>
+                  </div>
+                )}
+                {rotina.motivo_reprovacao && (
+                  <div className="col-span-2">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Motivo Reprovação</div>
+                    <div className="text-sm text-red-600 bg-red-50 p-2 rounded-lg">{rotina.motivo_reprovacao}</div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Status */}

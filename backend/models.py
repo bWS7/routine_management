@@ -114,11 +114,17 @@ class Rotina(db.Model):
     resultados_visita = db.Column(db.Text)
     carteira_ativa = db.Column(db.Text)
     metas_canal = db.Column(db.Text)
+    status_aprovacao = db.Column(db.String(30), default='pendente')  # pendente, aprovada, reprovada
+    aprovador_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
+    data_aprovacao = db.Column(db.DateTime)
+    motivo_reprovacao = db.Column(db.Text)
     criado_em = db.Column(db.DateTime, default=get_now_br)
     atualizado_em = db.Column(db.DateTime, default=get_now_br, onupdate=get_now_br)
     atividade = db.relationship('AtividadeCatalogo', backref='rotinas', lazy=True)
     evidencias = db.relationship('Evidencia', backref='rotina', lazy=True)
     historico = db.relationship('HistoricoRotina', backref='rotina', lazy=True)
+    aprovador = db.relationship('Usuario', foreign_keys=[aprovador_id], lazy=True)
+    aprovacoes = db.relationship('AprovacaoRotina', backref='rotina', lazy=True)
 
     def to_dict(self):
         return {
@@ -149,6 +155,11 @@ class Rotina(db.Model):
             'resultados_visita': self.resultados_visita,
             'carteira_ativa': self.carteira_ativa,
             'metas_canal': self.metas_canal,
+            'status_aprovacao': self.status_aprovacao,
+            'aprovador_id': self.aprovador_id,
+            'aprovador_nome': self.aprovador.nome if self.aprovador else None,
+            'data_aprovacao': self.data_aprovacao.replace(tzinfo=timezone.utc).isoformat() if self.data_aprovacao else None,
+            'motivo_reprovacao': self.motivo_reprovacao,
             'evidencias': [e.to_dict() for e in self.evidencias],
             'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None,
             'atualizado_em': self.atualizado_em.replace(tzinfo=timezone.utc).isoformat() if self.atualizado_em else None
@@ -222,5 +233,27 @@ class HistoricoRotina(db.Model):
             'status_anterior': self.status_anterior,
             'status_novo': self.status_novo,
             'observacao': self.observacao,
+            'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
+        }
+
+
+class AprovacaoRotina(db.Model):
+    __tablename__ = 'aprovacoes_rotinas'
+    id = db.Column(db.Integer, primary_key=True)
+    rotina_id = db.Column(db.Integer, db.ForeignKey('rotinas.id'), nullable=False)
+    aprovador_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    acao = db.Column(db.String(20), nullable=False)  # aprovada, reprovada
+    motivo = db.Column(db.Text)
+    criado_em = db.Column(db.DateTime, default=get_now_br)
+    aprovador = db.relationship('Usuario', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'rotina_id': self.rotina_id,
+            'aprovador_id': self.aprovador_id,
+            'aprovador_nome': self.aprovador.nome if self.aprovador else None,
+            'acao': self.acao,
+            'motivo': self.motivo,
             'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }

@@ -13,9 +13,10 @@ const NAV_SECTIONS = {
   principal: {
     label: 'Principal',
     items: [
-      { id: 'dashboard',      label: 'Dashboard',        icon: LayoutDashboard,  roles: ['admin', 'sr'] },
-      { id: 'rotinas',        label: 'Minhas Rotinas',   icon: ClipboardList,    roles: null },
-      { id: 'pendencias',     label: 'Pendências',       icon: AlertCircle,      roles: null },
+      { id: 'dashboard',            label: 'Dashboard',          icon: LayoutDashboard,  roles: ['admin', 'sr'] },
+      { id: 'rotinas',              label: 'Minhas Rotinas',     icon: ClipboardList,    roles: null },
+      { id: 'pendencias',           label: 'Pendências',         icon: AlertCircle,      roles: null },
+      { id: 'pendencias_aprovacao', label: 'Aprovações',         icon: Activity,         roles: ['admin', 'sr'] },
     ],
   },
   gestao: {

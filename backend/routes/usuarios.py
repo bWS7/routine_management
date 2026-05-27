@@ -90,6 +90,10 @@ def criar():
     if Usuario.query.filter_by(email=email).first():
         return jsonify({'erro': 'Email já cadastrado'}), 400
 
+    # Validação: SUPERINTENDENTE requer supervisor obrigatoriamente
+    if perfil == 'sr' and not data.get('supervisor_id'):
+        return jsonify({'erro': 'Superintendente deve ter um Supervisor Responsável designado'}), 400
+
     u = Usuario(
         nome=data['nome'],
         email=email,
@@ -133,6 +137,10 @@ def atualizar(uid):
         u.status = data['status']
     if 'senha' in data and require_admin(me):
         u.set_senha(data['senha'])
+
+    # Validação: SUPERINTENDENTE requer supervisor obrigatoriamente
+    if u.perfil == 'sr' and not u.supervisor_id:
+        return jsonify({'erro': 'Superintendente deve ter um Supervisor Responsável designado'}), 400
 
     after = u.to_dict()
     mudancas = diff_payload(before, after)

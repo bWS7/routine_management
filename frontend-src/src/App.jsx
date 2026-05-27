@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import RotinasPage from './pages/RotinasPage';
 import AcompanhamentoPage from './pages/AcompanhamentoPage';
 import PendenciasPage from './pages/PendenciasPage';
+import PendenciasAprovacaoPage from './pages/PendenciasAprovacaoPage';
 import UsuariosPage from './pages/UsuariosPage';
 import RegionaisPage from './pages/RegionaisPage';
 import AtividadesPage from './pages/AtividadesPage';
@@ -14,25 +15,27 @@ import AuditoriaPage from './pages/AuditoriaPage';
 import MeuPerfil from './pages/MeuPerfil';
 
 const PAGES = {
-  dashboard:      DashboardPage,
-  rotinas:        RotinasPage,
-  acompanhamento: AcompanhamentoPage,
-  pendencias:     PendenciasPage,
-  usuarios:       UsuariosPage,
-  regionais:      RegionaisPage,
-  atividades:     AtividadesPage,
-  perfil:         MeuPerfil,
-  auditoria:      AuditoriaPage,
+  dashboard:            DashboardPage,
+  rotinas:              RotinasPage,
+  acompanhamento:       AcompanhamentoPage,
+  pendencias:           PendenciasPage,
+  pendencias_aprovacao: PendenciasAprovacaoPage,
+  usuarios:             UsuariosPage,
+  regionais:            RegionaisPage,
+  atividades:           AtividadesPage,
+  perfil:               MeuPerfil,
+  auditoria:            AuditoriaPage,
 };
 
 // Role-based access
 const PAGE_ROLES = {
-  dashboard:      ['admin', 'sr'],
-  acompanhamento: ['admin', 'sr'],
-  usuarios:       ['admin'],
-  regionais:      ['admin'],
-  atividades:     ['admin'],
-  auditoria:      ['admin'],
+  dashboard:            ['admin', 'sr'],
+  acompanhamento:       ['admin', 'sr'],
+  pendencias_aprovacao: ['admin', 'sr'],
+  usuarios:             ['admin'],
+  regionais:            ['admin'],
+  atividades:           ['admin'],
+  auditoria:            ['admin'],
 };
 
 function AppContent() {
