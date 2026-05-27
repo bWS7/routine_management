@@ -38,7 +38,7 @@ const STATUS_APROVACAO_ICONS = {
 function RotinaCard({ rotina, onClick }) {
   const { Icon, color } = STATUS_ICONS[rotina.status] || STATUS_ICONS.nao_iniciada;
   const aprovacao = rotina.status === 'concluida' ? STATUS_APROVACAO_ICONS[rotina.status_aprovacao] : null;
-  
+
   return (
     <button
       onClick={onClick}
@@ -47,14 +47,7 @@ function RotinaCard({ rotina, onClick }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="relative">
-            <Icon size={18} className={`mt-0.5 shrink-0 ${color}`} />
-            {aprovacao && (
-              <div className="absolute -top-1 -right-1 tooltip group-hover:tooltip-show" title={aprovacao.label}>
-                <aprovacao.Icon size={14} className={`${aprovacao.color}`} />
-              </div>
-            )}
-          </div>
+          <Icon size={18} className={`mt-0.5 shrink-0 ${color}`} />
           <div className="min-w-0">
             <div className="text-sm font-semibold text-gray-900 group-hover:text-primary-700 transition-colors truncate">
               {rotina.atividade_nome}
@@ -65,31 +58,18 @@ function RotinaCard({ rotina, onClick }) {
               {rotina.atividade_obrigatoria && (
                 <span className="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-600 font-medium">Obrigatória</span>
               )}
-              {rotina.status === 'concluida' && rotina.status_aprovacao && (
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                  rotina.status_aprovacao === 'aprovada' ? 'bg-green-50 text-green-600' :
-                  rotina.status_aprovacao === 'reprovada' ? 'bg-red-50 text-red-600' :
-                  'bg-yellow-50 text-yellow-600'
-                }`}>
-                  {rotina.status_aprovacao === 'pendente' ? 'Aguardando Aprovação' :
-                   rotina.status_aprovacao === 'aprovada' ? 'Aprovada' : 'Reprovada'}
-                </span>
-              )}
             </div>
           </div>
         </div>
-        <div className="shrink-0 text-right">
+        <div className="shrink-0 text-right min-w-[110px]">
           <div className="text-xs text-gray-400">{fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}</div>
           {rotina.data_conclusao && (
             <div className="text-xs text-success-dark mt-1">✓ {fmtDatetime(rotina.data_conclusao)}</div>
           )}
-          {rotina.status === 'concluida' && rotina.data_aprovacao && (
-            <div className={`text-xs font-medium mt-1 ${
-              rotina.status_aprovacao === 'aprovada' ? 'text-green-600' :
-              rotina.status_aprovacao === 'reprovada' ? 'text-red-600' : 'text-yellow-600'
-            }`}>
-              {rotina.status_aprovacao === 'aprovada' ? '✓ Aprovada' :
-               rotina.status_aprovacao === 'reprovada' ? '✗ Reprovada' : '⏳ Pendente'}
+          {aprovacao && (
+            <div className={`flex items-center justify-end gap-1 mt-1.5 ${aprovacao.color}`}>
+              <aprovacao.Icon size={13} className="shrink-0" />
+              <span className="text-[11px] font-semibold">{aprovacao.label}</span>
             </div>
           )}
         </div>
