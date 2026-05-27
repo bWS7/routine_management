@@ -37,7 +37,7 @@ class Usuario(db.Model):
     criado_em = db.Column(db.DateTime, default=get_now_br)
     atualizado_em = db.Column(db.DateTime, default=get_now_br, onupdate=get_now_br)
     subordinados = db.relationship('Usuario', backref=db.backref('supervisor', remote_side=[id]), lazy=True)
-    rotinas = db.relationship('Rotina', backref='usuario', lazy=True)
+    rotinas = db.relationship('Rotina', foreign_keys='Rotina.usuario_id', backref='usuario', lazy=True)
 
     def set_senha(self, senha):
         self.senha_hash = bcrypt.hashpw(senha.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')

@@ -68,6 +68,7 @@ def create_app():
     @app.route('/pendencias')
     @app.route('/perfil')
     @app.route('/auditoria')
+    @app.route('/aprovacoes')
     def frontend():
         return send_from_directory('../frontend', 'index.html')
 
@@ -150,9 +151,16 @@ def _ensure_runtime_columns():
 
     if 'rotinas' in tabelas:
         existentes = {col['name'] for col in insp.get_columns('rotinas')}
-        for coluna in ['checklist', 'relatorio', 'plano_semana', 'visitas_ativacoes', 'resultados_visita', 'carteira_ativa', 'metas_canal']:
+        colunas_texto = ['checklist', 'relatorio', 'plano_semana', 'visitas_ativacoes', 'resultados_visita', 'carteira_ativa', 'metas_canal', 'motivo_reprovacao']
+        for coluna in colunas_texto:
             if coluna not in existentes:
                 db.session.execute(text(f"ALTER TABLE rotinas ADD COLUMN {coluna} TEXT"))
+        if 'status_aprovacao' not in existentes:
+            db.session.execute(text("ALTER TABLE rotinas ADD COLUMN status_aprovacao VARCHAR(30) DEFAULT 'pendente'"))
+        if 'aprovador_id' not in existentes:
+            db.session.execute(text("ALTER TABLE rotinas ADD COLUMN aprovador_id INTEGER"))
+        if 'data_aprovacao' not in existentes:
+            db.session.execute(text("ALTER TABLE rotinas ADD COLUMN data_aprovacao TIMESTAMP"))
 
     if 'evidencias' in tabelas:
         existentes = {col['name'] for col in insp.get_columns('evidencias')}
