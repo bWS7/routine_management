@@ -727,19 +727,20 @@ def aprovar_atividade(rid):
         return jsonify({'erro': f'Atividade já foi {rotina.status_aprovacao}'}), 400
     
     data = request.get_json() or {}
-    
+
     # Atualizar status de aprovação
     rotina.status_aprovacao = 'aprovada'
     rotina.aprovador_id = me.id
     rotina.data_aprovacao = get_now_br()
-    
+
     # Registrar no histórico de aprovações
     from backend.models import AprovacaoRotina
     aprovacao = AprovacaoRotina(
         rotina_id=rotina.id,
         aprovador_id=me.id,
         acao='aprovada',
-        motivo=data.get('motivo')
+        motivo=data.get('motivo'),
+        duracao_revisao_segundos=data.get('duracao_revisao_segundos')
     )
     db.session.add(aprovacao)
     
@@ -802,7 +803,8 @@ def reprovar_atividade(rid):
         rotina_id=rotina.id,
         aprovador_id=me.id,
         acao='reprovada',
-        motivo=motivo
+        motivo=motivo,
+        duracao_revisao_segundos=data.get('duracao_revisao_segundos')
     )
     db.session.add(aprovacao)
     
@@ -911,6 +913,63 @@ def salvar_formulario(rid):
     log_audit(me.id, 'rotina', r.id, 'formulario', {'rotina_id': r.id})
     db.session.commit()
     return jsonify({'mensagem': 'Relatório salvo com sucesso', 'formulario_preenchido': True})
+
+
+@rotinas_bp.route('/metricas-aprovacao', methods=['GET'])
+@jwt_required()
+def metricas_aprovacao():
+    me = get_current_user()
+    if me.perfil != 'admin':
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    from backend.models import AprovacaoRotina
+    limite = min(request.args.get('limit', 200, type=int), 500)
+    aprovador_id = request.args.get('aprovador_id', type=int)
+
+    query = AprovacaoRotina.query.order_by(AprovacaoRotina.criado_em.desc())
+    if aprovador_id:
+        query = query.filter_by(aprovador_id=aprovador_id)
+
+    registros = query.limit(limite).all()
+
+    # Agrupamento por aprovador
+    por_aprovador = {}
+    for a in registros:
+        aid = a.aprovador_id
+        if aid not in por_aprovador:
+            por_aprovador[aid] = {
+                'aprovador_id': aid,
+                'aprovador_nome': a.aprovador.nome if a.aprovador else 'N/A',
+                'total': 0,
+                'aprovadas': 0,
+                'reprovadas': 0,
+                'com_tempo': 0,
+                'soma_segundos': 0,
+                'min_segundos': None,
+                'max_segundos': None,
+            }
+        info = por_aprovador[aid]
+        info['total'] += 1
+        if a.acao == 'aprovada':
+            info['aprovadas'] += 1
+        else:
+            info['reprovadas'] += 1
+        if a.duracao_revisao_segundos is not None:
+            info['com_tempo'] += 1
+            info['soma_segundos'] += a.duracao_revisao_segundos
+            if info['min_segundos'] is None or a.duracao_revisao_segundos < info['min_segundos']:
+                info['min_segundos'] = a.duracao_revisao_segundos
+            if info['max_segundos'] is None or a.duracao_revisao_segundos > info['max_segundos']:
+                info['max_segundos'] = a.duracao_revisao_segundos
+
+    for info in por_aprovador.values():
+        ct = info['com_tempo']
+        info['media_segundos'] = round(info['soma_segundos'] / ct) if ct > 0 else None
+
+    return jsonify({
+        'registros': [a.to_dict() for a in registros],
+        'por_aprovador': sorted(por_aprovador.values(), key=lambda x: x['total'], reverse=True),
+    })
 
 
 @rotinas_bp.route('/para-aprovar', methods=['GET'])

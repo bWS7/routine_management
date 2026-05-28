@@ -12,6 +12,7 @@ import UsuariosPage from './pages/UsuariosPage';
 import RegionaisPage from './pages/RegionaisPage';
 import AtividadesPage from './pages/AtividadesPage';
 import AuditoriaPage from './pages/AuditoriaPage';
+import MetricasAprovacaoPage from './pages/MetricasAprovacaoPage';
 import MeuPerfil from './pages/MeuPerfil';
 
 const PAGES = {
@@ -25,6 +26,7 @@ const PAGES = {
   atividades:           AtividadesPage,
   perfil:               MeuPerfil,
   auditoria:            AuditoriaPage,
+  metricas_aprovacao:   MetricasAprovacaoPage,
 };
 
 // Role-based access
@@ -36,6 +38,7 @@ const PAGE_ROLES = {
   regionais:            ['admin'],
   atividades:           ['admin'],
   auditoria:            ['admin'],
+  metricas_aprovacao:   ['admin'],
 };
 
 function AppContent() {

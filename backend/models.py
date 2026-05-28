@@ -248,16 +248,20 @@ class AprovacaoRotina(db.Model):
     aprovador_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
     acao = db.Column(db.String(20), nullable=False)  # aprovada, reprovada
     motivo = db.Column(db.Text)
+    duracao_revisao_segundos = db.Column(db.Integer, nullable=True)
     criado_em = db.Column(db.DateTime, default=get_now_br)
     aprovador = db.relationship('Usuario', lazy=True)
+    rotina_rel = db.relationship('Rotina', foreign_keys=[rotina_id], lazy=True, overlaps='aprovacoes')
 
     def to_dict(self):
         return {
             'id': self.id,
             'rotina_id': self.rotina_id,
+            'rotina_nome': self.rotina_rel.atividade.nome if self.rotina_rel and self.rotina_rel.atividade else None,
             'aprovador_id': self.aprovador_id,
             'aprovador_nome': self.aprovador.nome if self.aprovador else None,
             'acao': self.acao,
             'motivo': self.motivo,
+            'duracao_revisao_segundos': self.duracao_revisao_segundos,
             'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }

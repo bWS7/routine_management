@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Check, X, AlertTriangle, FileText, Paperclip, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,7 @@ function PendenciasAprovacaoPage() {
   const [showFormulario, setShowFormulario] = useState(false);
   const [formularioPreview, setFormularioPreview] = useState(null);
   const [loadingFormulario, setLoadingFormulario] = useState(false);
+  const reviewStartRef = useRef(null);
 
   const loadAtividades = useCallback(async () => {
     setLoading(true);
@@ -41,6 +42,7 @@ function PendenciasAprovacaoPage() {
   }, [loadAtividades]);
 
   const selectRotina = async (rotina) => {
+    reviewStartRef.current = Date.now();
     setSelectedRotina(rotina);
     setIsRejectingMode(false);
     setRejectReason('');
@@ -51,6 +53,11 @@ function PendenciasAprovacaoPage() {
       setFormularioPreview(r.data.formulario);
     }
     setLoadingFormulario(false);
+  };
+
+  const getDuracaoRevisao = () => {
+    if (!reviewStartRef.current) return undefined;
+    return Math.floor((Date.now() - reviewStartRef.current) / 1000);
   };
 
   const closeModal = () => {
@@ -66,7 +73,7 @@ function PendenciasAprovacaoPage() {
     setApproveLoading(true);
     const r = await apiFetch(`/api/rotinas/${selectedRotina.id}/aprovar`, {
       method: 'POST',
-      body: JSON.stringify({ motivo: '' })
+      body: JSON.stringify({ motivo: '', duracao_revisao_segundos: getDuracaoRevisao() })
     });
     if (r?.ok) {
       toast('Atividade aprovada com sucesso!', 'success');
@@ -86,7 +93,7 @@ function PendenciasAprovacaoPage() {
     setApproveLoading(true);
     const r = await apiFetch(`/api/rotinas/${selectedRotina.id}/reprovar`, {
       method: 'POST',
-      body: JSON.stringify({ motivo: rejectReason })
+      body: JSON.stringify({ motivo: rejectReason, duracao_revisao_segundos: getDuracaoRevisao() })
     });
     if (r?.ok) {
       toast('Atividade reprovada', 'success');

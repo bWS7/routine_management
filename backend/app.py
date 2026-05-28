@@ -164,6 +164,11 @@ def _ensure_runtime_columns():
         if 'formulario_preenchido' not in existentes:
             db.session.execute(text("ALTER TABLE rotinas ADD COLUMN formulario_preenchido BOOLEAN DEFAULT FALSE"))
 
+    if 'aprovacoes_rotinas' in tabelas:
+        existentes_ap = {col['name'] for col in insp.get_columns('aprovacoes_rotinas')}
+        if 'duracao_revisao_segundos' not in existentes_ap:
+            db.session.execute(text("ALTER TABLE aprovacoes_rotinas ADD COLUMN duracao_revisao_segundos INTEGER"))
+
     if 'evidencias' in tabelas:
         existentes = {col['name'] for col in insp.get_columns('evidencias')}
         if 'conteudo' not in existentes:
