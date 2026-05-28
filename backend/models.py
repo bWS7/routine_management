@@ -114,6 +114,8 @@ class Rotina(db.Model):
     resultados_visita = db.Column(db.Text)
     carteira_ativa = db.Column(db.Text)
     metas_canal = db.Column(db.Text)
+    formulario_comercial = db.Column(db.Text)
+    formulario_preenchido = db.Column(db.Boolean, default=False)
     status_aprovacao = db.Column(db.String(30), default='pendente')  # pendente, aprovada, reprovada
     aprovador_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     data_aprovacao = db.Column(db.DateTime)
@@ -155,6 +157,8 @@ class Rotina(db.Model):
             'resultados_visita': self.resultados_visita,
             'carteira_ativa': self.carteira_ativa,
             'metas_canal': self.metas_canal,
+            'formulario_comercial': self.formulario_comercial,
+            'formulario_preenchido': self.formulario_preenchido or False,
             'status_aprovacao': self.status_aprovacao,
             'aprovador_id': self.aprovador_id,
             'aprovador_nome': self.aprovador.nome if self.aprovador else None,

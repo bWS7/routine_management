@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw } from 'lucide-react';
+import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText } from 'lucide-react';
+import FormularioComercialModal from '../components/shared/FormularioComercialModal';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -174,6 +175,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   const [historico, setHistorico] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showFormulario, setShowFormulario] = useState(false);
 
   // form fields
   const [status, setStatus] = useState('');
@@ -258,11 +260,12 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
     };
     const r = await apiFetch(`/api/rotinas/${rotinaId}`, { method: 'PUT', body: JSON.stringify(payload) });
     if (r?.ok) { toast('Rotina atualizada!', 'success'); onSaved?.(); onClose(); }
-    else toast('Erro ao salvar', 'error');
+    else toast(r?.data?.erro || 'Erro ao salvar', 'error');
     setSaving(false);
   };
 
   return (
+    <>
     <Modal
       open={!!rotinaId}
       onClose={onClose}
@@ -277,6 +280,13 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
                 Reenviar para Aprovação
               </Button>
             )}
+            <Button
+              variant={rotina?.formulario_preenchido ? 'secondary' : 'primary'}
+              icon={FileText}
+              onClick={() => setShowFormulario(true)}
+            >
+              {rotina?.formulario_preenchido ? 'Ver Relatório' : 'Preencher Relatório'}
+            </Button>
             {canEdit && (
               <Button onClick={save} loading={saving}>Salvar Alterações</Button>
             )}
@@ -290,6 +300,20 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
         <div className="flex justify-center py-12"><div className="h-6 w-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : rotina && (
         <div className="space-y-5">
+          {/* Formulário obrigatório alert */}
+          {!rotina.formulario_preenchido && (
+            <div className="flex items-start gap-2 p-3 bg-warning-light rounded-xl text-sm text-warning-dark border border-yellow-200">
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <span>O <strong>Relatório Comercial</strong> é obrigatório. Preencha-o antes de concluir a atividade.</span>
+            </div>
+          )}
+          {rotina.formulario_preenchido && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl text-sm text-success-dark border border-green-100">
+              <FileText size={16} />
+              Relatório Comercial preenchido
+            </div>
+          )}
+
           {/* Meta info */}
           <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-xl">
             <div>
@@ -428,6 +452,18 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
         </div>
       )}
     </Modal>
+
+    {showFormulario && rotina && (
+      <FormularioComercialModal
+        rotinaId={rotinaId}
+        rotina={rotina}
+        currentUser={currentUser}
+        readOnly={!canEdit}
+        onClose={() => setShowFormulario(false)}
+        onSaved={() => loadRotina(true)}
+      />
+    )}
+  </>
   );
 }
 

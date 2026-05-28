@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import os
 import uuid
 from flask import Blueprint, request, jsonify, current_app, send_file
@@ -195,6 +196,8 @@ def atualizar(rid):
     status_anterior = r.status
 
     if 'status' in data:
+        if data['status'] == 'concluida' and not r.formulario_preenchido:
+            return jsonify({'erro': 'Preencha o Relatório Comercial antes de concluir a atividade'}), 400
         r.status = data['status']
         if data['status'] == 'concluida' and not r.data_conclusao:
             r.data_conclusao = get_now_br()
@@ -871,6 +874,43 @@ def reenviar_para_aprovacao(rid):
 
     db.session.commit()
     return jsonify(rotina.to_dict())
+
+
+@rotinas_bp.route('/<int:rid>/formulario', methods=['GET'])
+@jwt_required()
+def obter_formulario(rid):
+    me = get_current_user()
+    r = Rotina.query.get_or_404(rid)
+    if not can_access_rotina(me, r):
+        return jsonify({'erro': 'Acesso negado'}), 403
+    dados = {}
+    if r.formulario_comercial:
+        try:
+            dados = json.loads(r.formulario_comercial)
+        except Exception:
+            dados = {}
+    return jsonify({'formulario': dados, 'formulario_preenchido': r.formulario_preenchido or False})
+
+
+@rotinas_bp.route('/<int:rid>/formulario', methods=['PUT'])
+@jwt_required()
+def salvar_formulario(rid):
+    me = get_current_user()
+    r = Rotina.query.get_or_404(rid)
+    if not can_access_rotina(me, r):
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    data = request.get_json() or {}
+    formulario = data.get('formulario', {})
+    r.formulario_comercial = json.dumps(formulario, ensure_ascii=False)
+    r.formulario_preenchido = True
+
+    add_rotina_history(r, me.id, 'atualizacao_rotina',
+                       observacao='Relatório Comercial preenchido',
+                       status_anterior=r.status, status_novo=r.status)
+    log_audit(me.id, 'rotina', r.id, 'formulario', {'rotina_id': r.id})
+    db.session.commit()
+    return jsonify({'mensagem': 'Relatório salvo com sucesso', 'formulario_preenchido': True})
 
 
 @rotinas_bp.route('/para-aprovar', methods=['GET'])
