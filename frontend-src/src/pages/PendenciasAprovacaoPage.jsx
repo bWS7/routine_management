@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Check, X, AlertTriangle, Loader } from 'lucide-react';
+import { Check, X, AlertTriangle, FileText, Paperclip, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Modal } from '../components/ui/Modal';
-import { Textarea, Input } from '../components/ui/Input';
+import { Textarea } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
-import { StatusBadge, PeriodoBadge } from '../components/ui/Badge';
-import { Card, CardBody, CardHeader, CardTitle } from '../components/ui/Card';
+import { PeriodoBadge } from '../components/ui/Badge';
+import { Card, CardBody } from '../components/ui/Card';
 import { PERIODO_LABELS, fmtDate, fmtDatetime } from '../utils/constants';
+import FormularioComercialModal from '../components/shared/FormularioComercialModal';
 
 function PendenciasAprovacaoPage() {
   const { currentUser } = useAuth();
@@ -20,6 +21,9 @@ function PendenciasAprovacaoPage() {
   const [approveLoading, setApproveLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [isRejectingMode, setIsRejectingMode] = useState(false);
+  const [showFormulario, setShowFormulario] = useState(false);
+  const [formularioPreview, setFormularioPreview] = useState(null);
+  const [loadingFormulario, setLoadingFormulario] = useState(false);
 
   const loadAtividades = useCallback(async () => {
     setLoading(true);
@@ -35,6 +39,27 @@ function PendenciasAprovacaoPage() {
   useEffect(() => {
     loadAtividades();
   }, [loadAtividades]);
+
+  const selectRotina = async (rotina) => {
+    setSelectedRotina(rotina);
+    setIsRejectingMode(false);
+    setRejectReason('');
+    setFormularioPreview(null);
+    setLoadingFormulario(true);
+    const r = await apiFetch(`/api/rotinas/${rotina.id}/formulario`);
+    if (r?.ok && r.data.formulario && Object.keys(r.data.formulario).length > 0) {
+      setFormularioPreview(r.data.formulario);
+    }
+    setLoadingFormulario(false);
+  };
+
+  const closeModal = () => {
+    setSelectedRotina(null);
+    setIsRejectingMode(false);
+    setRejectReason('');
+    setFormularioPreview(null);
+    setShowFormulario(false);
+  };
 
   const handleAprovar = async () => {
     if (!selectedRotina) return;
@@ -140,11 +165,7 @@ function PendenciasAprovacaoPage() {
             {pendentes.map(rotina => (
               <button
                 key={rotina.id}
-                onClick={() => {
-                  setSelectedRotina(rotina);
-                  setIsRejectingMode(false);
-                  setRejectReason('');
-                }}
+                onClick={() => selectRotina(rotina)}
                 className="w-full text-left bg-white rounded-lg border-2 border-yellow-100 p-4 hover:border-yellow-300 hover:bg-yellow-50 transition-all"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -247,55 +268,21 @@ function PendenciasAprovacaoPage() {
       {/* Modal de Aprovação */}
       <Modal
         open={!!selectedRotina}
-        onClose={() => {
-          setSelectedRotina(null);
-          setIsRejectingMode(false);
-          setRejectReason('');
-        }}
+        onClose={closeModal}
         title={selectedRotina?.atividade_nome}
-        size="lg"
+        size="xl"
         footer={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setSelectedRotina(null);
-                setIsRejectingMode(false);
-                setRejectReason('');
-              }}
-            >
-              Cancelar
-            </Button>
+            <Button variant="secondary" onClick={closeModal}>Cancelar</Button>
             {!isRejectingMode ? (
               <>
-                <Button
-                  variant="danger"
-                  onClick={() => setIsRejectingMode(true)}
-                >
-                  Reprovar
-                </Button>
-                <Button
-                  onClick={handleAprovar}
-                  loading={approveLoading}
-                  icon={Check}
-                >
-                  Aprovar
-                </Button>
+                <Button variant="danger" onClick={() => setIsRejectingMode(true)} icon={X}>Reprovar</Button>
+                <Button onClick={handleAprovar} loading={approveLoading} icon={Check}>Aprovar</Button>
               </>
             ) : (
               <>
-                <Button
-                  variant="secondary"
-                  onClick={() => setIsRejectingMode(false)}
-                >
-                  Voltar
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={handleReprovar}
-                  loading={approveLoading}
-                  icon={X}
-                >
+                <Button variant="secondary" onClick={() => setIsRejectingMode(false)}>Voltar</Button>
+                <Button variant="danger" onClick={handleReprovar} loading={approveLoading} icon={X}>
                   Confirmar Reprovação
                 </Button>
               </>
@@ -304,34 +291,33 @@ function PendenciasAprovacaoPage() {
         }
       >
         {selectedRotina && (
-          <div className="space-y-4">
-            {/* Info */}
-            <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-lg">
+          <div className="space-y-5">
+
+            {/* Info geral */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-xl">
               <div>
-                <p className="text-xs text-gray-500 font-medium">Usuário</p>
-                <p className="text-sm text-gray-900 font-medium mt-1">{selectedRotina.usuario_nome}</p>
+                <p className="text-xs text-gray-400 font-medium mb-1">Usuário</p>
+                <p className="text-sm text-gray-900 font-semibold">{selectedRotina.usuario_nome}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 font-medium">Período</p>
-                <p className="text-sm text-gray-900 font-medium mt-1">
-                  {fmtDate(selectedRotina.periodo_inicio)} → {fmtDate(selectedRotina.periodo_fim)}
-                </p>
+                <p className="text-xs text-gray-400 font-medium mb-1">Período</p>
+                <p className="text-sm text-gray-900">{fmtDate(selectedRotina.periodo_inicio)} → {fmtDate(selectedRotina.periodo_fim)}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 font-medium">Periodicidade</p>
-                <p className="text-sm text-gray-900 font-medium mt-1">{PERIODO_LABELS[selectedRotina.periodicidade]}</p>
+                <p className="text-xs text-gray-400 font-medium mb-1">Periodicidade</p>
+                <PeriodoBadge periodo={selectedRotina.periodicidade} label={PERIODO_LABELS[selectedRotina.periodicidade]} />
               </div>
               <div>
-                <p className="text-xs text-gray-500 font-medium">Concluída em</p>
-                <p className="text-sm text-gray-900 font-medium mt-1">{fmtDatetime(selectedRotina.data_conclusao)}</p>
+                <p className="text-xs text-gray-400 font-medium mb-1">Concluída em</p>
+                <p className="text-sm text-gray-900">{fmtDatetime(selectedRotina.data_conclusao)}</p>
               </div>
             </div>
 
             {/* Comentário */}
             {selectedRotina.comentario && (
               <div>
-                <p className="text-sm font-medium text-gray-900 mb-2">Comentário</p>
-                <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-700">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Comentário do colaborador</p>
+                <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-700 border border-gray-100">
                   {selectedRotina.comentario}
                 </div>
               </div>
@@ -340,24 +326,159 @@ function PendenciasAprovacaoPage() {
             {/* Evidências */}
             {selectedRotina.evidencias?.length > 0 && (
               <div>
-                <p className="text-sm font-medium text-gray-900 mb-2">Evidências ({selectedRotina.evidencias.length})</p>
-                <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  Evidências anexadas ({selectedRotina.evidencias.length})
+                </p>
+                <div className="space-y-1.5">
                   {selectedRotina.evidencias.map(e => (
-                    <a
-                      key={e.id}
-                      href={e.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block p-2 bg-gray-50 rounded-lg text-sm text-primary-600 hover:text-primary-800 transition-colors"
-                    >
-                      📎 {e.nome_arquivo}
+                    <a key={e.id} href={e.url} target="_blank" rel="noopener noreferrer"
+                       className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg text-sm text-primary-600 hover:text-primary-800 hover:bg-primary-50 transition-colors border border-gray-100">
+                      <Paperclip size={13} className="shrink-0" />
+                      <span className="truncate">{e.nome_arquivo}</span>
+                      <ExternalLink size={12} className="shrink-0 ml-auto" />
                     </a>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Rejeição */}
+            {/* Relatório Comercial */}
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between p-4 bg-gray-50 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <FileText size={16} className="text-primary-600" />
+                  <span className="text-sm font-semibold text-gray-800">Relatório Comercial</span>
+                  {selectedRotina.formulario_preenchido ? (
+                    <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 font-medium">Preenchido</span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-600 font-medium">Não preenchido</span>
+                  )}
+                </div>
+                {selectedRotina.formulario_preenchido && (
+                  <Button variant="secondary" size="xs" icon={FileText} onClick={() => setShowFormulario(true)}>
+                    Ver relatório completo
+                  </Button>
+                )}
+              </div>
+
+              {loadingFormulario ? (
+                <div className="flex justify-center py-6">
+                  <div className="h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : formularioPreview ? (
+                <div className="p-4 space-y-4">
+
+                  {/* Identificação */}
+                  {(formularioPreview.categoria || formularioPreview.empreendimento || formularioPreview.data_execucao) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                      {formularioPreview.categoria && (
+                        <div><p className="text-xs text-gray-400">Categoria</p><p className="font-medium text-gray-800">{formularioPreview.categoria}</p></div>
+                      )}
+                      {formularioPreview.data_execucao && (
+                        <div><p className="text-xs text-gray-400">Data execução</p><p className="font-medium text-gray-800">{fmtDate(formularioPreview.data_execucao)}</p></div>
+                      )}
+                      {formularioPreview.empreendimento && (
+                        <div><p className="text-xs text-gray-400">Empreendimento</p><p className="font-medium text-gray-800">{formularioPreview.empreendimento}</p></div>
+                      )}
+                      {formularioPreview.hora_inicio && (
+                        <div><p className="text-xs text-gray-400">Horário</p><p className="font-medium text-gray-800">{formularioPreview.hora_inicio}{formularioPreview.hora_termino ? ` → ${formularioPreview.hora_termino}` : ''}</p></div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Objetivo */}
+                  {formularioPreview.objetivo && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Objetivo</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{formularioPreview.objetivo}</p>
+                    </div>
+                  )}
+
+                  {/* Resumo */}
+                  {formularioPreview.resumo_execucao && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Resumo da execução</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{formularioPreview.resumo_execucao}</p>
+                    </div>
+                  )}
+
+                  {/* Resultados */}
+                  {formularioPreview.resultados && Object.values(formularioPreview.resultados).some(r => r.resultado_atual) && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Resultados / Indicadores</p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs min-w-[360px]">
+                          <thead>
+                            <tr className="border-b border-gray-100">
+                              {['Indicador', 'Resultado', 'Meta', 'Status'].map(h => (
+                                <th key={h} className="text-left text-gray-400 font-medium pb-1.5 pr-3">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(formularioPreview.resultados).filter(([, v]) => v.resultado_atual).map(([ind, v]) => (
+                              <tr key={ind} className="border-b border-gray-50">
+                                <td className="pr-3 py-1.5 font-medium text-gray-700">{ind}</td>
+                                <td className="pr-3 py-1.5 text-gray-600">{v.resultado_atual}</td>
+                                <td className="pr-3 py-1.5 text-gray-600">{v.meta || '—'}</td>
+                                <td className="py-1.5">
+                                  {v.status && (
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      v.status === 'OK' ? 'bg-green-100 text-green-700' :
+                                      v.status === 'Atenção' ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-red-100 text-red-700'
+                                    }`}>{v.status}</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Avaliação final */}
+                  {formularioPreview.objetivo_atingido && (
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-gray-400 font-medium">Objetivo atingido?</p>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        formularioPreview.objetivo_atingido === 'Sim' ? 'bg-green-100 text-green-700' :
+                        formularioPreview.objetivo_atingido === 'Parcialmente' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-600'
+                      }`}>{formularioPreview.objetivo_atingido}</span>
+                    </div>
+                  )}
+
+                  {/* Dificuldades */}
+                  {formularioPreview.dificuldades && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Dificuldades identificadas</p>
+                      <p className="text-sm text-gray-700 bg-yellow-50 rounded-lg p-3 border border-yellow-100">{formularioPreview.dificuldades}</p>
+                    </div>
+                  )}
+
+                  {/* Próximos passos */}
+                  {formularioPreview.proximos_passos && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Próximos passos</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{formularioPreview.proximos_passos}</p>
+                    </div>
+                  )}
+
+                  <button onClick={() => setShowFormulario(true)}
+                    className="flex items-center gap-1.5 text-xs text-primary-600 hover:text-primary-800 font-medium">
+                    <FileText size={13} /> Ver relatório completo com todos os campos
+                  </button>
+                </div>
+              ) : selectedRotina.formulario_preenchido ? (
+                <div className="p-4 text-center text-sm text-gray-400">Carregando relatório...</div>
+              ) : (
+                <div className="p-4 text-center text-sm text-gray-400">Nenhum relatório preenchido pelo colaborador.</div>
+              )}
+            </div>
+
+            {/* Reprovação */}
             {isRejectingMode && (
               <Textarea
                 label="Motivo da Reprovação"
@@ -371,6 +492,17 @@ function PendenciasAprovacaoPage() {
           </div>
         )}
       </Modal>
+
+      {/* Modal do relatório completo (read-only) */}
+      {showFormulario && selectedRotina && (
+        <FormularioComercialModal
+          rotinaId={selectedRotina.id}
+          rotina={selectedRotina}
+          currentUser={currentUser}
+          readOnly
+          onClose={() => setShowFormulario(false)}
+        />
+      )}
     </div>
   );
 }
