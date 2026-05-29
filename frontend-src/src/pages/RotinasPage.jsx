@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText } from 'lucide-react';
+import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText, Info } from 'lucide-react';
 import FormularioComercialModal from '../components/shared/FormularioComercialModal';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -250,6 +250,14 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
       toast('Preencha a justificativa e o plano de ação', 'error');
       return;
     }
+    if (status === 'concluida' && (!rotina?.evidencias || rotina.evidencias.length === 0)) {
+      toast('Anexe pelo menos uma evidência antes de concluir a atividade', 'error');
+      return;
+    }
+    if (status === 'concluida' && !rotina?.formulario_preenchido) {
+      toast('Preencha o Relatório Comercial antes de concluir a atividade', 'error');
+      return;
+    }
     setSaving(true);
     const payload = {
       status, comentario, justificativa, acao_corretiva: acaoCorretiva,
@@ -311,6 +319,13 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
             <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl text-sm text-success-dark border border-green-100">
               <FileText size={16} />
               Relatório Comercial preenchido
+            </div>
+          )}
+
+          {(!rotina.evidencias || rotina.evidencias.length === 0) && (
+            <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-xl text-sm text-orange-700 border border-orange-200">
+              <Info size={16} className="shrink-0 mt-0.5" />
+              <span><strong>Evidência obrigatória.</strong> Anexe pelo menos um arquivo antes de concluir a atividade.</span>
             </div>
           )}
 
