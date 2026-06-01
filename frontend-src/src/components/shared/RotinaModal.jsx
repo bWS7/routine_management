@@ -309,7 +309,15 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
           )}
 
           <div className="border-t border-gray-100 pt-5">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Evidências e Anexos</h4>
+            <div className="flex items-center gap-2 mb-3">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Evidências e Anexos</h4>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">Obrigatório</span>
+            </div>
+            {status === 'concluida' && (!rotina.evidencias || rotina.evidencias.length === 0) && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+                Anexe pelo menos uma evidência para concluir esta atividade.
+              </p>
+            )}
             <EvidenciasList evidencias={rotina.evidencias} rotinaId={rotinaId} canEdit={canEdit} onReload={() => loadRotina(true)} />
           </div>
 
