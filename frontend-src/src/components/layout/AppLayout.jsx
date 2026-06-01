@@ -34,7 +34,7 @@ export default function AppLayout({ activePage, onNavigate, children }) {
               animate="animate"
               exit="exit"
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="p-6 min-h-full"
+              className="p-4 sm:p-6 min-h-full"
             >
               {children}
             </motion.div>

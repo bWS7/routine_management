@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, Paperclip, ExternalLink, Trash2, Eye } from 'lucide-react';
+import { CheckCircle, Paperclip, ExternalLink, Trash2, FileText, AlertTriangle, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -8,6 +8,7 @@ import { Select, Input, Textarea } from '../ui/Input';
 import Button from '../ui/Button';
 import { StatusBadge, PeriodoBadge } from '../ui/Badge';
 import { PERIODO_LABELS, STATUS_LABELS, fmtDate, fmtDatetime } from '../../utils/constants';
+import FormularioComercialModal from './FormularioComercialModal';
 
 function EvidenciasList({ evidencias, rotinaId, canEdit, onReload }) {
   const { toast } = useToast();
@@ -94,6 +95,7 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
   const [historico, setHistorico] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showFormulario, setShowFormulario] = useState(false);
 
   const [status, setStatus] = useState('');
   const [comentario, setComentario] = useState('');
@@ -157,6 +159,14 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
       toast('Preencha a justificativa e o plano de ação', 'error');
       return;
     }
+    if (status === 'concluida' && (!rotina?.evidencias || rotina.evidencias.length === 0)) {
+      toast('Anexe pelo menos uma evidência antes de concluir a atividade', 'error');
+      return;
+    }
+    if (status === 'concluida' && !rotina?.formulario_preenchido) {
+      toast('Preencha o Relatório Comercial antes de concluir a atividade', 'error');
+      return;
+    }
     setSaving(true);
     const payload = {
       status, comentario, justificativa, acao_corretiva: acaoCorretiva,
@@ -172,6 +182,7 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
   };
 
   return (
+    <>
     <Modal
       open={!!rotinaId}
       onClose={onClose}
@@ -181,10 +192,24 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
         canEdit && !loading ? (
           <>
             <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button
+              variant={rotina?.formulario_preenchido ? 'secondary' : 'primary'}
+              icon={FileText}
+              onClick={() => setShowFormulario(true)}
+            >
+              {rotina?.formulario_preenchido ? 'Ver Relatório' : 'Preencher Relatório'}
+            </Button>
             <Button onClick={save} loading={saving}>Salvar Alterações</Button>
           </>
         ) : (
-          <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          <>
+            {rotina && (
+              <Button variant="secondary" icon={FileText} onClick={() => setShowFormulario(true)}>
+                Ver Relatório
+              </Button>
+            )}
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          </>
         )
       }
     >
@@ -194,6 +219,28 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
         </div>
       ) : rotina && (
         <div className="space-y-5">
+          {/* Formulário obrigatório alert */}
+          {!rotina.formulario_preenchido && (
+            <div className="flex items-start gap-2 p-3 bg-warning-light rounded-xl text-sm text-warning-dark border border-yellow-200">
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <span>O <strong>Relatório Comercial</strong> é obrigatório. Preencha-o antes de concluir a atividade.</span>
+            </div>
+          )}
+          {rotina.formulario_preenchido && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl text-sm text-success-dark border border-green-100">
+              <FileText size={16} />
+              Relatório Comercial preenchido
+            </div>
+          )}
+
+          {/* Evidência obrigatória */}
+          {(!rotina.evidencias || rotina.evidencias.length === 0) && (
+            <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-xl text-sm text-orange-700 border border-orange-200">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <span><strong>Evidência obrigatória.</strong> Anexe pelo menos um arquivo antes de concluir a atividade.</span>
+            </div>
+          )}
+
           {/* Meta info grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-xl">
             <div>
@@ -280,5 +327,17 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
         </div>
       )}
     </Modal>
+
+    {showFormulario && (
+      <FormularioComercialModal
+        rotinaId={rotinaId}
+        rotina={rotina}
+        currentUser={currentUser}
+        readOnly={!canEdit}
+        onClose={() => setShowFormulario(false)}
+        onSaved={() => { loadRotina(true); }}
+      />
+    )}
+  </>
   );
 }

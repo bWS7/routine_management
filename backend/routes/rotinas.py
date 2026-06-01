@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import os
 import uuid
 from flask import Blueprint, request, jsonify, current_app, send_file
@@ -195,6 +196,11 @@ def atualizar(rid):
     status_anterior = r.status
 
     if 'status' in data:
+        if data['status'] == 'concluida':
+            if not r.formulario_preenchido:
+                return jsonify({'erro': 'Preencha o Relatório Comercial antes de concluir a atividade'}), 400
+            if not r.evidencias:
+                return jsonify({'erro': 'Anexe pelo menos uma evidência antes de concluir a atividade'}), 400
         r.status = data['status']
         if data['status'] == 'concluida' and not r.data_conclusao:
             r.data_conclusao = get_now_br()
@@ -724,19 +730,20 @@ def aprovar_atividade(rid):
         return jsonify({'erro': f'Atividade já foi {rotina.status_aprovacao}'}), 400
     
     data = request.get_json() or {}
-    
+
     # Atualizar status de aprovação
     rotina.status_aprovacao = 'aprovada'
     rotina.aprovador_id = me.id
     rotina.data_aprovacao = get_now_br()
-    
+
     # Registrar no histórico de aprovações
     from backend.models import AprovacaoRotina
     aprovacao = AprovacaoRotina(
         rotina_id=rotina.id,
         aprovador_id=me.id,
         acao='aprovada',
-        motivo=data.get('motivo')
+        motivo=data.get('motivo'),
+        duracao_revisao_segundos=data.get('duracao_revisao_segundos')
     )
     db.session.add(aprovacao)
     
@@ -799,7 +806,8 @@ def reprovar_atividade(rid):
         rotina_id=rotina.id,
         aprovador_id=me.id,
         acao='reprovada',
-        motivo=motivo
+        motivo=motivo,
+        duracao_revisao_segundos=data.get('duracao_revisao_segundos')
     )
     db.session.add(aprovacao)
     
@@ -871,6 +879,276 @@ def reenviar_para_aprovacao(rid):
 
     db.session.commit()
     return jsonify(rotina.to_dict())
+
+
+@rotinas_bp.route('/<int:rid>/formulario', methods=['GET'])
+@jwt_required()
+def obter_formulario(rid):
+    me = get_current_user()
+    r = Rotina.query.get_or_404(rid)
+    if not can_access_rotina(me, r):
+        return jsonify({'erro': 'Acesso negado'}), 403
+    dados = {}
+    if r.formulario_comercial:
+        try:
+            dados = json.loads(r.formulario_comercial)
+        except Exception:
+            dados = {}
+    return jsonify({'formulario': dados, 'formulario_preenchido': r.formulario_preenchido or False})
+
+
+@rotinas_bp.route('/<int:rid>/formulario', methods=['PUT'])
+@jwt_required()
+def salvar_formulario(rid):
+    me = get_current_user()
+    r = Rotina.query.get_or_404(rid)
+    if not can_access_rotina(me, r):
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    data = request.get_json() or {}
+    formulario = data.get('formulario', {})
+    r.formulario_comercial = json.dumps(formulario, ensure_ascii=False)
+    r.formulario_preenchido = True
+
+    add_rotina_history(r, me.id, 'atualizacao_rotina',
+                       observacao='Relatório Comercial preenchido',
+                       status_anterior=r.status, status_novo=r.status)
+    log_audit(me.id, 'rotina', r.id, 'formulario', {'rotina_id': r.id})
+    db.session.commit()
+    return jsonify({'mensagem': 'Relatório salvo com sucesso', 'formulario_preenchido': True})
+
+
+@rotinas_bp.route('/relatorios-preenchimento', methods=['GET'])
+@jwt_required()
+def relatorios_preenchimento():
+    me = get_current_user()
+    if me.perfil != 'admin':
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    regional_id  = request.args.get('regional_id', type=int)
+    usuario_id   = request.args.get('usuario_id', type=int)
+    perfil_filtro = request.args.get('perfil')
+    atividade_id = request.args.get('atividade_id', type=int)
+    periodicidade = request.args.get('periodicidade')
+    status       = request.args.get('status')
+    data_inicio  = request.args.get('data_inicio')
+    data_fim     = request.args.get('data_fim')
+    busca        = request.args.get('busca', '').strip()
+
+    query = (
+        Rotina.query
+        .join(Usuario, Rotina.usuario_id == Usuario.id)
+        .join(AtividadeCatalogo, Rotina.atividade_id == AtividadeCatalogo.id)
+        .filter(Rotina.formulario_preenchido == True)
+    )
+
+    if regional_id:
+        query = query.filter(Usuario.regional_id == regional_id)
+    if usuario_id:
+        query = query.filter(Rotina.usuario_id == usuario_id)
+    if perfil_filtro:
+        query = query.filter(AtividadeCatalogo.perfil == perfil_filtro)
+    if atividade_id:
+        query = query.filter(Rotina.atividade_id == atividade_id)
+    if periodicidade:
+        query = query.filter(Rotina.periodicidade == periodicidade)
+    if status:
+        query = query.filter(Rotina.status == status)
+    if data_inicio:
+        query = query.filter(Rotina.periodo_inicio >= date.fromisoformat(data_inicio))
+    if data_fim:
+        query = query.filter(Rotina.periodo_fim <= date.fromisoformat(data_fim))
+    if busca:
+        from sqlalchemy import or_
+        query = query.filter(or_(
+            Usuario.nome.ilike(f'%{busca}%'),
+            AtividadeCatalogo.nome.ilike(f'%{busca}%'),
+        ))
+
+    rotinas = query.order_by(Rotina.atualizado_em.desc()).all()
+    result = []
+    for r in rotinas:
+        d = r.to_dict()
+        try:
+            d['formulario_data'] = json.loads(r.formulario_comercial) if r.formulario_comercial else {}
+        except Exception:
+            d['formulario_data'] = {}
+        result.append(d)
+    return jsonify(result)
+
+
+@rotinas_bp.route('/relatorios-preenchimento/export', methods=['GET'])
+@jwt_required()
+def exportar_relatorios_preenchimento():
+    me = get_current_user()
+    if me.perfil != 'admin':
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    regional_id  = request.args.get('regional_id', type=int)
+    usuario_id   = request.args.get('usuario_id', type=int)
+    perfil_filtro = request.args.get('perfil')
+    atividade_id = request.args.get('atividade_id', type=int)
+    periodicidade = request.args.get('periodicidade')
+    status       = request.args.get('status')
+    data_inicio  = request.args.get('data_inicio')
+    data_fim     = request.args.get('data_fim')
+    busca        = request.args.get('busca', '').strip()
+
+    query = (
+        Rotina.query
+        .join(Usuario, Rotina.usuario_id == Usuario.id)
+        .join(AtividadeCatalogo, Rotina.atividade_id == AtividadeCatalogo.id)
+        .filter(Rotina.formulario_preenchido == True)
+    )
+    if regional_id:
+        query = query.filter(Usuario.regional_id == regional_id)
+    if usuario_id:
+        query = query.filter(Rotina.usuario_id == usuario_id)
+    if perfil_filtro:
+        query = query.filter(AtividadeCatalogo.perfil == perfil_filtro)
+    if atividade_id:
+        query = query.filter(Rotina.atividade_id == atividade_id)
+    if periodicidade:
+        query = query.filter(Rotina.periodicidade == periodicidade)
+    if status:
+        query = query.filter(Rotina.status == status)
+    if data_inicio:
+        query = query.filter(Rotina.periodo_inicio >= date.fromisoformat(data_inicio))
+    if data_fim:
+        query = query.filter(Rotina.periodo_fim <= date.fromisoformat(data_fim))
+    if busca:
+        from sqlalchemy import or_
+        query = query.filter(or_(
+            Usuario.nome.ilike(f'%{busca}%'),
+            AtividadeCatalogo.nome.ilike(f'%{busca}%'),
+        ))
+
+    rotinas = query.order_by(Rotina.atualizado_em.desc()).all()
+
+    cabecalho = [
+        'Colaborador', 'Regional', 'Cargo', 'Atividade', 'Periodicidade',
+        'Período Início', 'Período Fim', 'Status', 'Status Aprovação',
+        'Categoria', 'Empreendimento', 'Data Execução', 'Hora Início', 'Hora Término',
+        'Objetivo', 'Resumo da Execução', 'Principais Temas',
+        'Leads - Resultado', 'Leads - Meta', 'Leads - Status',
+        'Conversão - Resultado', 'Conversão - Meta', 'Conversão - Status',
+        'Visitas - Resultado', 'Visitas - Meta', 'Visitas - Status',
+        'Reservas - Resultado', 'Reservas - Meta', 'Reservas - Status',
+        'Vendas - Resultado', 'Vendas - Meta', 'Vendas - Status',
+        'Observação Evidências', 'Dificuldades', 'Motivo Desvio 1', 'Motivo Desvio 2',
+        'Descrição da Causa', 'Necessita Apoio', 'Área de Apoio', 'Motivo Apoio',
+        'Objetivo Atingido', 'Próximos Passos',
+        'Qtde Evidências', 'Qtde Participantes', 'Qtde Ações no Plano',
+    ]
+
+    linhas = []
+    for r in rotinas:
+        try:
+            f = json.loads(r.formulario_comercial) if r.formulario_comercial else {}
+        except Exception:
+            f = {}
+
+        def ind(nome, campo):
+            return f.get('resultados', {}).get(nome, {}).get(campo, '')
+
+        participantes = f.get('participantes', [])
+        plano = f.get('plano_acao', [])
+        linhas.append([
+            r.usuario.nome if r.usuario else '',
+            r.usuario.regional.nome if r.usuario and r.usuario.regional else '',
+            r.atividade.perfil if r.atividade else '',
+            r.atividade.nome if r.atividade else '',
+            r.periodicidade or '',
+            r.periodo_inicio.isoformat() if r.periodo_inicio else '',
+            r.periodo_fim.isoformat() if r.periodo_fim else '',
+            r.status or '',
+            r.status_aprovacao or '',
+            f.get('categoria', ''),
+            f.get('empreendimento', ''),
+            f.get('data_execucao', ''),
+            f.get('hora_inicio', ''),
+            f.get('hora_termino', ''),
+            f.get('objetivo', ''),
+            f.get('resumo_execucao', ''),
+            f.get('principais_temas', ''),
+            ind('Leads','resultado_atual'), ind('Leads','meta'), ind('Leads','status'),
+            ind('Conversão','resultado_atual'), ind('Conversão','meta'), ind('Conversão','status'),
+            ind('Visitas','resultado_atual'), ind('Visitas','meta'), ind('Visitas','status'),
+            ind('Reservas','resultado_atual'), ind('Reservas','meta'), ind('Reservas','status'),
+            ind('Vendas','resultado_atual'), ind('Vendas','meta'), ind('Vendas','status'),
+            f.get('observacao_evidencias', ''),
+            f.get('dificuldades', ''),
+            f.get('motivo_desvio_1', ''),
+            f.get('motivo_desvio_2', ''),
+            f.get('descricao_causa', ''),
+            f.get('necessita_apoio', ''),
+            f.get('area_apoio', ''),
+            f.get('motivo_apoio', ''),
+            f.get('objetivo_atingido', ''),
+            f.get('proximos_passos', ''),
+            len(r.evidencias),
+            len([p for p in participantes if p.get('nome')]),
+            len([a for a in plano if a.get('acao')]),
+        ])
+
+    return _export_csv('relatorios_preenchimento.csv', cabecalho, linhas)
+
+
+@rotinas_bp.route('/metricas-aprovacao', methods=['GET'])
+@jwt_required()
+def metricas_aprovacao():
+    me = get_current_user()
+    if me.perfil != 'admin':
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    from backend.models import AprovacaoRotina
+    limite = min(request.args.get('limit', 200, type=int), 500)
+    aprovador_id = request.args.get('aprovador_id', type=int)
+
+    query = AprovacaoRotina.query.order_by(AprovacaoRotina.criado_em.desc())
+    if aprovador_id:
+        query = query.filter_by(aprovador_id=aprovador_id)
+
+    registros = query.limit(limite).all()
+
+    # Agrupamento por aprovador
+    por_aprovador = {}
+    for a in registros:
+        aid = a.aprovador_id
+        if aid not in por_aprovador:
+            por_aprovador[aid] = {
+                'aprovador_id': aid,
+                'aprovador_nome': a.aprovador.nome if a.aprovador else 'N/A',
+                'total': 0,
+                'aprovadas': 0,
+                'reprovadas': 0,
+                'com_tempo': 0,
+                'soma_segundos': 0,
+                'min_segundos': None,
+                'max_segundos': None,
+            }
+        info = por_aprovador[aid]
+        info['total'] += 1
+        if a.acao == 'aprovada':
+            info['aprovadas'] += 1
+        else:
+            info['reprovadas'] += 1
+        if a.duracao_revisao_segundos is not None:
+            info['com_tempo'] += 1
+            info['soma_segundos'] += a.duracao_revisao_segundos
+            if info['min_segundos'] is None or a.duracao_revisao_segundos < info['min_segundos']:
+                info['min_segundos'] = a.duracao_revisao_segundos
+            if info['max_segundos'] is None or a.duracao_revisao_segundos > info['max_segundos']:
+                info['max_segundos'] = a.duracao_revisao_segundos
+
+    for info in por_aprovador.values():
+        ct = info['com_tempo']
+        info['media_segundos'] = round(info['soma_segundos'] / ct) if ct > 0 else None
+
+    return jsonify({
+        'registros': [a.to_dict() for a in registros],
+        'por_aprovador': sorted(por_aprovador.values(), key=lambda x: x['total'], reverse=True),
+    })
 
 
 @rotinas_bp.route('/para-aprovar', methods=['GET'])

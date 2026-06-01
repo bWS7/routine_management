@@ -1,0 +1,503 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+  FileText, Download, Search, Filter, Eye, ChevronDown, ChevronUp,
+  CheckCircle, XCircle, Clock, AlertCircle, BarChart2, Users, TrendingUp, RefreshCw,
+} from 'lucide-react';
+import { apiFetch, downloadExport } from '../api/client';
+import { useToast } from '../context/ToastContext';
+import { PageSpinner, EmptyState } from '../components/ui/Spinner';
+import { PeriodoBadge, StatusBadge } from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import { Select, Input } from '../components/ui/Input';
+import FormularioComercialModal from '../components/shared/FormularioComercialModal';
+import { fmtDate, fmtDatetime, PERIODO_LABELS, STATUS_LABELS } from '../utils/constants';
+
+const PERFIL_LABELS = {
+  sr: 'Superintendente Regional',
+  gv: 'Gerente de Vendas',
+  cd: 'Coordenador de Produto',
+  sp: 'Supervisor de Parceria',
+};
+
+const INDICADORES = ['Leads', 'Conversão', 'Visitas', 'Reservas', 'Vendas'];
+
+function StatusIndicador({ valor }) {
+  if (!valor) return <span className="text-gray-300">—</span>;
+  const cls = valor === 'OK' ? 'bg-green-100 text-green-700'
+    : valor === 'Atenção' ? 'bg-yellow-100 text-yellow-700'
+    : 'bg-red-100 text-red-700';
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{valor}</span>;
+}
+
+function ObjetivoTag({ valor }) {
+  if (!valor) return <span className="text-gray-300 text-xs">—</span>;
+  const cls = valor === 'Sim' ? 'bg-green-100 text-green-700'
+    : valor === 'Parcialmente' ? 'bg-yellow-100 text-yellow-700'
+    : 'bg-red-100 text-red-600';
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>{valor}</span>;
+}
+
+// ── Métricas agregadas ────────────────────────────────────────────────────────
+function MetricasSection({ relatorios }) {
+  const total = relatorios.length;
+  if (total === 0) return null;
+
+  const form = (r) => r.formulario_data || {};
+
+  const porObjetivo = { Sim: 0, Parcialmente: 0, Não: 0, '—': 0 };
+  const porCategoria = {};
+  const porApoio = { Sim: 0, Parcialmente: 0, Não: 0, '—': 0 };
+  const indicAgg = {};
+  INDICADORES.forEach(ind => { indicAgg[ind] = { ok: 0, atencao: 0, critico: 0, total: 0 }; });
+
+  relatorios.forEach(r => {
+    const f = form(r);
+    const obj = f.objetivo_atingido || '—';
+    porObjetivo[obj] = (porObjetivo[obj] || 0) + 1;
+    const cat = f.categoria || '—';
+    porCategoria[cat] = (porCategoria[cat] || 0) + 1;
+    const apoio = f.necessita_apoio || '—';
+    porApoio[apoio] = (porApoio[apoio] || 0) + 1;
+    INDICADORES.forEach(ind => {
+      const status = f.resultados?.[ind]?.status;
+      if (status) {
+        indicAgg[ind].total++;
+        if (status === 'OK') indicAgg[ind].ok++;
+        else if (status === 'Atenção') indicAgg[ind].atencao++;
+        else indicAgg[ind].critico++;
+      }
+    });
+  });
+
+  const pct = (n) => total > 0 ? Math.round(n / total * 100) : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <BarChart2 size={15} className="text-primary-600" />
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Indicadores e Métricas</h2>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Objetivo atingido */}
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-card">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-3">Objetivo Atingido</p>
+          <div className="space-y-2">
+            {[['Sim', 'bg-green-500'], ['Parcialmente', 'bg-yellow-400'], ['Não', 'bg-red-500']].map(([k, col]) => (
+              <div key={k}>
+                <div className="flex justify-between text-xs mb-0.5">
+                  <span className="text-gray-600">{k}</span>
+                  <span className="font-semibold text-gray-800">{porObjetivo[k] || 0} ({pct(porObjetivo[k] || 0)}%)</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full ${col} rounded-full transition-all`} style={{ width: `${pct(porObjetivo[k] || 0)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Por categoria */}
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-card">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-3">Por Categoria</p>
+          <div className="space-y-1.5 max-h-36 overflow-y-auto">
+            {Object.entries(porCategoria).sort((a, b) => b[1] - a[1]).map(([cat, n]) => (
+              <div key={cat} className="flex justify-between text-xs">
+                <span className="text-gray-600 truncate mr-2">{cat}</span>
+                <span className="font-semibold text-gray-800 shrink-0">{n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Escalonamento */}
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-card">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-3">Necessita Apoio de Outra Área</p>
+          <div className="space-y-2">
+            {[['Sim', 'bg-red-400'], ['Parcialmente', 'bg-yellow-400'], ['Não', 'bg-green-400']].map(([k, col]) => (
+              <div key={k}>
+                <div className="flex justify-between text-xs mb-0.5">
+                  <span className="text-gray-600">{k}</span>
+                  <span className="font-semibold text-gray-800">{porApoio[k] || 0}</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full ${col} rounded-full`} style={{ width: `${pct(porApoio[k] || 0)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Indicadores */}
+      {INDICADORES.some(ind => indicAgg[ind].total > 0) && (
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-card overflow-x-auto">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-3">Status dos Indicadores</p>
+          <table className="w-full text-xs min-w-[400px]">
+            <thead>
+              <tr className="border-b border-gray-100">
+                {['Indicador', 'Preenchidos', 'OK', 'Atenção', 'Crítico'].map(h => (
+                  <th key={h} className="text-left text-gray-400 font-medium pb-2 pr-4">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {INDICADORES.filter(ind => indicAgg[ind].total > 0).map(ind => {
+                const a = indicAgg[ind];
+                return (
+                  <tr key={ind} className="border-b border-gray-50">
+                    <td className="pr-4 py-2 font-medium text-gray-700">{ind}</td>
+                    <td className="pr-4 py-2 text-gray-500">{a.total}</td>
+                    <td className="pr-4 py-2"><span className="text-green-600 font-semibold">{a.ok}</span></td>
+                    <td className="pr-4 py-2"><span className="text-yellow-600 font-semibold">{a.atencao}</span></td>
+                    <td className="pr-4 py-2"><span className="text-red-600 font-semibold">{a.critico}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Linha da tabela ───────────────────────────────────────────────────────────
+function RelatorioRow({ rotina, onView }) {
+  const [expanded, setExpanded] = useState(false);
+  const f = rotina.formulario_data || {};
+
+  return (
+    <>
+      <tr
+        className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+        onClick={() => setExpanded(v => !v)}
+      >
+        <td className="px-4 py-3">
+          <div className="font-medium text-sm text-gray-900">{rotina.usuario_nome}</div>
+          <div className="text-xs text-gray-400">{PERFIL_LABELS[rotina.perfil] || rotina.perfil}</div>
+        </td>
+        <td className="px-4 py-3 text-sm text-gray-600 max-w-[180px]">
+          <div className="truncate">{rotina.atividade_nome}</div>
+        </td>
+        <td className="px-4 py-3">
+          <PeriodoBadge periodo={rotina.periodicidade} label={PERIODO_LABELS[rotina.periodicidade]} />
+        </td>
+        <td className="px-4 py-3 text-xs text-gray-500">
+          {fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}
+        </td>
+        <td className="px-4 py-3">
+          <StatusBadge status={rotina.status} label={STATUS_LABELS[rotina.status]} />
+        </td>
+        <td className="px-4 py-3 text-xs text-gray-600">{f.categoria || '—'}</td>
+        <td className="px-4 py-3"><ObjetivoTag valor={f.objetivo_atingido} /></td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={e => { e.stopPropagation(); onView(rotina); }}
+              className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-800 font-medium"
+            >
+              <Eye size={13} /> Ver
+            </button>
+            {expanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+          </div>
+        </td>
+      </tr>
+
+      {expanded && (
+        <tr className="bg-gray-50 border-b border-gray-100">
+          <td colSpan={8} className="px-4 py-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+
+              {f.objetivo && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-1">Objetivo</p>
+                  <p className="text-gray-700 text-xs">{f.objetivo}</p>
+                </div>
+              )}
+
+              {f.resumo_execucao && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-1">Resumo da Execução</p>
+                  <p className="text-gray-700 text-xs">{f.resumo_execucao}</p>
+                </div>
+              )}
+
+              {f.dificuldades && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-1">Dificuldades</p>
+                  <p className="text-gray-700 text-xs bg-yellow-50 rounded p-2">{f.dificuldades}</p>
+                </div>
+              )}
+
+              {f.proximos_passos && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-1">Próximos Passos</p>
+                  <p className="text-gray-700 text-xs">{f.proximos_passos}</p>
+                </div>
+              )}
+
+              {f.resultados && Object.entries(f.resultados).some(([, v]) => v.resultado_atual) && (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <p className="text-xs text-gray-400 font-medium mb-2">Indicadores</p>
+                  <div className="flex flex-wrap gap-3">
+                    {Object.entries(f.resultados).filter(([, v]) => v.resultado_atual).map(([ind, v]) => (
+                      <div key={ind} className="bg-white border border-gray-100 rounded-lg px-3 py-2">
+                        <p className="text-xs text-gray-400">{ind}</p>
+                        <p className="text-sm font-semibold text-gray-800">{v.resultado_atual}</p>
+                        {v.meta && <p className="text-xs text-gray-400">Meta: {v.meta}</p>}
+                        {v.status && <StatusIndicador valor={v.status} />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Evidências:</span>
+                <span className="text-xs font-semibold text-gray-700">{rotina.evidencias?.length || 0} arquivo(s)</span>
+              </div>
+
+              {f.necessita_apoio && f.necessita_apoio !== 'Não' && (
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-1">Escalonamento</p>
+                  <p className="text-xs text-gray-700">{f.necessita_apoio} — {f.area_apoio || ''}</p>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// ── Página principal ──────────────────────────────────────────────────────────
+export default function RelatoriosPreenchimentoPage() {
+  const { toast } = useToast();
+
+  // Dados
+  const [relatorios, setRelatorios] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [regionais, setRegionais] = useState([]);
+  const [atividades, setAtividades] = useState([]);
+
+  // Filtros
+  const [busca, setBusca] = useState('');
+  const [regionalId, setRegionalId] = useState('');
+  const [perfil, setPerfil] = useState('');
+  const [atividadeId, setAtividadeId] = useState('');
+  const [periodicidade, setPeriodicidade] = useState('');
+  const [status, setStatus] = useState('');
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+
+  // Modal visualização
+  const [viewRotina, setViewRotina] = useState(null);
+
+  // Tab ativa
+  const [tab, setTab] = useState('tabela'); // tabela | metricas
+
+  const buildQuery = useCallback(() => {
+    const params = new URLSearchParams();
+    if (busca) params.append('busca', busca);
+    if (regionalId) params.append('regional_id', regionalId);
+    if (perfil) params.append('perfil', perfil);
+    if (atividadeId) params.append('atividade_id', atividadeId);
+    if (periodicidade) params.append('periodicidade', periodicidade);
+    if (status) params.append('status', status);
+    if (dataInicio) params.append('data_inicio', dataInicio);
+    if (dataFim) params.append('data_fim', dataFim);
+    return params.toString();
+  }, [busca, regionalId, perfil, atividadeId, periodicidade, status, dataInicio, dataFim]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const qs = buildQuery();
+    const r = await apiFetch(`/api/rotinas/relatorios-preenchimento${qs ? '?' + qs : ''}`);
+    if (r?.ok) setRelatorios(r.data);
+    else toast(r?.data?.erro || 'Erro ao carregar relatórios', 'error');
+    setLoading(false);
+  }, [buildQuery, toast]);
+
+  // Carrega regionais e atividades uma vez
+  useEffect(() => {
+    Promise.all([
+      apiFetch('/api/regionais/'),
+      apiFetch('/api/atividades/'),
+    ]).then(([r, a]) => {
+      if (r?.ok) setRegionais(r.data);
+      if (a?.ok) setAtividades(a.data);
+    });
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const exportar = () => {
+    const qs = buildQuery();
+    downloadExport(
+      `/api/rotinas/relatorios-preenchimento/export${qs ? '?' + qs : ''}`,
+      'relatorios_preenchimento.csv'
+    ).catch(() => toast('Erro ao exportar', 'error'));
+  };
+
+  const limparFiltros = () => {
+    setBusca(''); setRegionalId(''); setPerfil(''); setAtividadeId('');
+    setPeriodicidade(''); setStatus(''); setDataInicio(''); setDataFim('');
+  };
+
+  const totalFiltros = [busca, regionalId, perfil, atividadeId, periodicidade, status, dataInicio, dataFim].filter(Boolean).length;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-0.5">
+            <FileText size={20} className="text-primary-600" />
+            <h1 className="text-xl font-bold text-gray-900">Relatórios de Preenchimento</h1>
+          </div>
+          <p className="text-sm text-gray-500">
+            {loading ? 'Carregando...' : `${relatorios.length} relatório(s) encontrado(s)`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" icon={RefreshCw} onClick={load}>Atualizar</Button>
+          <Button icon={Download} onClick={exportar}>Exportar CSV</Button>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-card space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <Filter size={14} className="text-gray-400" />
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filtros</span>
+          {totalFiltros > 0 && (
+            <button onClick={limparFiltros} className="ml-auto text-xs text-primary-600 hover:text-primary-800 font-medium">
+              Limpar {totalFiltros} filtro(s)
+            </button>
+          )}
+        </div>
+
+        {/* Busca rápida */}
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            placeholder="Buscar por colaborador ou atividade..."
+            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+          />
+        </div>
+
+        {/* Filtros em grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <Select value={regionalId} onChange={e => setRegionalId(e.target.value)} label="Regional">
+            <option value="">Todas</option>
+            {regionais.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+          </Select>
+
+          <Select value={perfil} onChange={e => setPerfil(e.target.value)} label="Cargo">
+            <option value="">Todos</option>
+            {Object.entries(PERFIL_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </Select>
+
+          <Select value={atividadeId} onChange={e => setAtividadeId(e.target.value)} label="Atividade">
+            <option value="">Todas</option>
+            {atividades.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+          </Select>
+
+          <Select value={periodicidade} onChange={e => setPeriodicidade(e.target.value)} label="Periodicidade">
+            <option value="">Todas</option>
+            <option value="semanal">Semanal</option>
+            <option value="quinzenal">Quinzenal</option>
+            <option value="mensal">Mensal</option>
+          </Select>
+
+          <Select value={status} onChange={e => setStatus(e.target.value)} label="Status">
+            <option value="">Todos</option>
+            <option value="concluida">Concluída</option>
+            <option value="em_andamento">Em Andamento</option>
+            <option value="nao_iniciada">Não Iniciada</option>
+            <option value="nao_realizada">Não Realizada</option>
+          </Select>
+
+          <Input type="date" label="Período início" value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+          <Input type="date" label="Período fim" value={dataFim} onChange={e => setDataFim(e.target.value)} />
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {[
+          { id: 'tabela', label: 'Relatórios', icon: FileText },
+          { id: 'metricas', label: 'Métricas', icon: BarChart2 },
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === t.id
+                ? 'border-primary-600 text-primary-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <t.icon size={15} />
+            {t.label}
+            {t.id === 'tabela' && relatorios.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs bg-primary-100 text-primary-700 font-semibold">
+                {relatorios.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <PageSpinner />
+      ) : relatorios.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title="Nenhum relatório encontrado"
+          description="Ajuste os filtros ou aguarde que os colaboradores preencham os relatórios nas atividades."
+        />
+      ) : tab === 'metricas' ? (
+        <MetricasSection relatorios={relatorios} />
+      ) : (
+        /* Tabela */
+        <div className="bg-white border border-gray-100 rounded-xl shadow-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  {['Colaborador', 'Atividade', 'Período', 'Datas', 'Status', 'Categoria', 'Objetivo Atingido', ''].map(h => (
+                    <th key={h} className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 py-3">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {relatorios.map(r => (
+                  <RelatorioRow key={r.id} rotina={r} onView={setViewRotina} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-400">
+            {relatorios.length} relatório(s) · Clique em uma linha para expandir · Use "Ver" para o relatório completo
+          </div>
+        </div>
+      )}
+
+      {/* Modal relatório completo */}
+      {viewRotina && (
+        <FormularioComercialModal
+          rotinaId={viewRotina.id}
+          rotina={viewRotina}
+          currentUser={null}
+          readOnly
+          onClose={() => setViewRotina(null)}
+        />
+      )}
+    </div>
+  );
+}

@@ -151,7 +151,7 @@ def _ensure_runtime_columns():
 
     if 'rotinas' in tabelas:
         existentes = {col['name'] for col in insp.get_columns('rotinas')}
-        colunas_texto = ['checklist', 'relatorio', 'plano_semana', 'visitas_ativacoes', 'resultados_visita', 'carteira_ativa', 'metas_canal', 'motivo_reprovacao']
+        colunas_texto = ['checklist', 'relatorio', 'plano_semana', 'visitas_ativacoes', 'resultados_visita', 'carteira_ativa', 'metas_canal', 'motivo_reprovacao', 'formulario_comercial']
         for coluna in colunas_texto:
             if coluna not in existentes:
                 db.session.execute(text(f"ALTER TABLE rotinas ADD COLUMN {coluna} TEXT"))
@@ -161,6 +161,13 @@ def _ensure_runtime_columns():
             db.session.execute(text("ALTER TABLE rotinas ADD COLUMN aprovador_id INTEGER"))
         if 'data_aprovacao' not in existentes:
             db.session.execute(text("ALTER TABLE rotinas ADD COLUMN data_aprovacao TIMESTAMP"))
+        if 'formulario_preenchido' not in existentes:
+            db.session.execute(text("ALTER TABLE rotinas ADD COLUMN formulario_preenchido BOOLEAN DEFAULT FALSE"))
+
+    if 'aprovacoes_rotinas' in tabelas:
+        existentes_ap = {col['name'] for col in insp.get_columns('aprovacoes_rotinas')}
+        if 'duracao_revisao_segundos' not in existentes_ap:
+            db.session.execute(text("ALTER TABLE aprovacoes_rotinas ADD COLUMN duracao_revisao_segundos INTEGER"))
 
     if 'evidencias' in tabelas:
         existentes = {col['name'] for col in insp.get_columns('evidencias')}
