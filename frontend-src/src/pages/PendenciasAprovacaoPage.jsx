@@ -8,7 +8,6 @@ import { Textarea } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
 import { PeriodoBadge } from '../components/ui/Badge';
-import { Card, CardBody } from '../components/ui/Card';
 import { PERIODO_LABELS, fmtDate, fmtDatetime } from '../utils/constants';
 import FormularioComercialModal from '../components/shared/FormularioComercialModal';
 
@@ -17,6 +16,7 @@ function PendenciasAprovacaoPage() {
   const { toast } = useToast();
   const [atividades, setAtividades] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState('pendente');
   const [selectedRotina, setSelectedRotina] = useState(null);
   const [approveLoading, setApproveLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -133,154 +133,76 @@ function PendenciasAprovacaoPage() {
         <p className="text-gray-600 mt-1">Revise e aprove as atividades concluídas pelos usuários da sua regional</p>
       </div>
 
-      {/* Stats */}
+      {/* Filtros clicáveis */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardBody className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Aguardando Aprovação</p>
-              <p className="text-3xl font-bold text-yellow-600 mt-1">{pendentes.length}</p>
+        {[
+          { key: 'pendente',  label: 'Aguardando Aprovação', count: pendentes.length,  Icon: AlertTriangle, active: 'border-yellow-400 bg-yellow-50 ring-2 ring-yellow-300', inactive: 'bg-white border-gray-200 hover:border-gray-300', numColor: 'text-yellow-600', iconColor: 'text-yellow-500' },
+          { key: 'aprovada',  label: 'Aprovadas',            count: aprovadas.length,  Icon: Check,         active: 'border-green-400 bg-green-50 ring-2 ring-green-300',   inactive: 'bg-white border-gray-200 hover:border-gray-300', numColor: 'text-green-600',  iconColor: 'text-green-500' },
+          { key: 'reprovada', label: 'Reprovadas',           count: reprovadas.length, Icon: X,             active: 'border-red-400 bg-red-50 ring-2 ring-red-300',         inactive: 'bg-white border-gray-200 hover:border-gray-300', numColor: 'text-red-600',    iconColor: 'text-red-500' },
+        ].map(({ key, label, count, Icon, active, inactive, numColor, iconColor }) => (
+          <button
+            key={key}
+            onClick={() => setFiltro(key)}
+            className={`text-left rounded-xl border-2 p-4 transition-all duration-150 ${filtro === key ? active : inactive}`}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">{label}</p>
+                <p className={`text-3xl font-bold mt-1 ${filtro === key ? numColor : 'text-gray-800'}`}>{count}</p>
+              </div>
+              <Icon className={filtro === key ? iconColor : 'text-gray-400'} size={32} />
             </div>
-            <AlertTriangle className="text-yellow-600" size={32} />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Aprovadas</p>
-              <p className="text-3xl font-bold text-green-600 mt-1">{aprovadas.length}</p>
-            </div>
-            <Check className="text-green-600" size={32} />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Reprovadas</p>
-              <p className="text-3xl font-bold text-red-600 mt-1">{reprovadas.length}</p>
-            </div>
-            <X className="text-red-600" size={32} />
-          </CardBody>
-        </Card>
+          </button>
+        ))}
       </div>
 
-      {/* Pendentes */}
-      {pendentes.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Aguardando Sua Aprovação</h2>
+      {/* Lista filtrada */}
+      {(() => {
+        const lista = filtro === 'pendente' ? pendentes : filtro === 'aprovada' ? aprovadas : reprovadas;
+        if (lista.length === 0) return (
+          <EmptyState
+            icon={filtro === 'pendente' ? AlertTriangle : filtro === 'aprovada' ? Check : X}
+            title={filtro === 'pendente' ? 'Nenhuma atividade aguardando aprovação' : filtro === 'aprovada' ? 'Nenhuma atividade aprovada' : 'Nenhuma atividade reprovada'}
+            description=""
+          />
+        );
+        const borderClass = filtro === 'pendente' ? 'border-yellow-100 hover:border-yellow-300 hover:bg-yellow-50' : filtro === 'aprovada' ? 'border-green-100 bg-green-50 hover:border-green-300' : 'border-red-100 bg-red-50 hover:border-red-300';
+        const Icon = filtro === 'pendente' ? AlertTriangle : filtro === 'aprovada' ? Check : X;
+        const iconColor = filtro === 'pendente' ? 'text-yellow-600' : filtro === 'aprovada' ? 'text-green-600' : 'text-red-600';
+        return (
           <div className="space-y-2">
-            {pendentes.map(rotina => (
+            {lista.map(rotina => (
               <button
                 key={rotina.id}
                 onClick={() => selectRotina(rotina)}
-                className="w-full text-left bg-white rounded-lg border-2 border-yellow-100 p-4 hover:border-yellow-300 hover:bg-yellow-50 transition-all"
+                className={`w-full text-left bg-white rounded-lg border-2 p-4 transition-all cursor-pointer ${borderClass}`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-semibold text-gray-900">{rotina.atividade_nome}</p>
                     <p className="text-sm text-gray-600 mt-1">{rotina.usuario_nome}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <PeriodoBadge periodo={rotina.periodicidade} label={PERIODO_LABELS[rotina.periodicidade]} />
                       <span className="text-xs text-gray-500">{fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}</span>
                     </div>
-                  </div>
-                  <div className="shrink-0">
-                    <AlertTriangle className="text-yellow-600" size={24} />
-                  </div>
-                </div>
-                {rotina.comentario && (
-                  <p className="text-sm text-gray-600 mt-3 line-clamp-2">{rotina.comentario}</p>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Aprovadas */}
-      {aprovadas.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Aprovadas</h2>
-          <div className="space-y-2">
-            {aprovadas.map(rotina => (
-              <button
-                key={rotina.id}
-                onClick={() => selectRotina(rotina)}
-                className="w-full text-left bg-white rounded-lg border-2 border-green-100 p-4 bg-green-50 hover:border-green-300 transition-all cursor-pointer"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-900">{rotina.atividade_nome}</p>
-                    <p className="text-sm text-gray-600 mt-1">{rotina.usuario_nome}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <PeriodoBadge periodo={rotina.periodicidade} label={PERIODO_LABELS[rotina.periodicidade]} />
-                      <span className="text-xs text-gray-500">{fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}</span>
-                    </div>
-                    {rotina.data_aprovacao && (
-                      <p className="text-xs text-green-600 mt-2">Aprovado em {fmtDatetime(rotina.data_aprovacao)} por {rotina.aprovador_nome}</p>
+                    {rotina.comentario && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{rotina.comentario}</p>}
+                    {filtro === 'aprovada' && rotina.data_aprovacao && (
+                      <p className="text-xs text-green-700 mt-2">✓ Aprovado em {fmtDatetime(rotina.data_aprovacao)} por {rotina.aprovador_nome}</p>
+                    )}
+                    {filtro === 'reprovada' && (
+                      <>
+                        {rotina.data_aprovacao && <p className="text-xs text-red-700 mt-2">✗ Reprovado em {fmtDatetime(rotina.data_aprovacao)} por {rotina.aprovador_nome}</p>}
+                        {rotina.motivo_reprovacao && <p className="text-xs text-red-700 font-semibold mt-1">Motivo: {rotina.motivo_reprovacao}</p>}
+                      </>
                     )}
                   </div>
-                  <div className="shrink-0">
-                    <Check className="text-green-600" size={24} />
-                  </div>
+                  <div className="shrink-0"><Icon className={iconColor} size={22} /></div>
                 </div>
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Reprovadas */}
-      {reprovadas.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Reprovadas</h2>
-          <div className="space-y-2">
-            {reprovadas.map(rotina => (
-              <button
-                key={rotina.id}
-                onClick={() => selectRotina(rotina)}
-                className="w-full text-left bg-white rounded-lg border-2 border-red-100 p-4 bg-red-50 hover:border-red-300 transition-all cursor-pointer"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-900">{rotina.atividade_nome}</p>
-                    <p className="text-sm text-gray-600 mt-1">{rotina.usuario_nome}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <PeriodoBadge periodo={rotina.periodicidade} label={PERIODO_LABELS[rotina.periodicidade]} />
-                      <span className="text-xs text-gray-500">{fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}</span>
-                    </div>
-                    {rotina.data_aprovacao && (
-                      <p className="text-xs text-red-600 mt-2">Reprovado em {fmtDatetime(rotina.data_aprovacao)} por {rotina.aprovador_nome}</p>
-                    )}
-                    {rotina.motivo_reprovacao && (
-                      <p className="text-xs text-red-600 mt-1 font-semibold">Motivo: {rotina.motivo_reprovacao}</p>
-                    )}
-                  </div>
-                  <div className="shrink-0">
-                    <X className="text-red-600" size={24} />
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {pendentes.length === 0 && aprovadas.length === 0 && reprovadas.length === 0 && (
-        <EmptyState
-          icon={Check}
-          title="Nenhuma atividade encontrada"
-          description="Não há atividades concluídas na sua regional"
-        />
-      )}
-
-      {pendentes.length === 0 && (aprovadas.length > 0 || reprovadas.length > 0) && (
-        <EmptyState
-          icon={Check}
-          title="Nenhuma atividade pendente"
-          description="Todas as atividades foram processadas"
-        />
-      )}
+        );
+      })()}
 
       {/* Modal de Aprovação */}
       <Modal
