@@ -97,7 +97,20 @@ export default function AcompanhamentoPage() {
                     </Td>
                     <Td><PeriodoBadge periodo={r.periodicidade} label={PERIODO_LABELS[r.periodicidade]} /></Td>
                     <Td><span className="text-xs text-gray-500">{fmtDate(r.periodo_inicio)}</span></Td>
-                    <Td><StatusBadge status={r.status} label={STATUS_LABELS[r.status]} /></Td>
+                    <Td>
+                      <div className="flex flex-col gap-1">
+                        <StatusBadge status={r.status} label={STATUS_LABELS[r.status]} />
+                        {r.status === 'concluida' && r.status_aprovacao === 'aprovada' && (
+                          <span className="text-[10px] font-medium text-green-600">✓ Aprovada</span>
+                        )}
+                        {r.status === 'concluida' && r.status_aprovacao === 'reprovada' && (
+                          <span className="text-[10px] font-medium text-red-600">✗ Reprovada</span>
+                        )}
+                        {r.status === 'concluida' && r.status_aprovacao === 'pendente' && (
+                          <span className="text-[10px] font-medium text-yellow-600">⏳ Pend. aprovação</span>
+                        )}
+                      </div>
+                    </Td>
                     <Td><span className="text-xs text-gray-500">{r.data_conclusao ? fmtDatetime(r.data_conclusao) : '—'}</span></Td>
                     <Td>
                       <div className="w-1.5 h-1.5 rounded-full bg-gray-300 group-hover:bg-primary-400 transition-colors" />
