@@ -145,6 +145,24 @@ def _seed_initial_data():
 
 
 
+def _sync_descricoes_catalogo():
+    """Preenche descricao nula nas atividades do catálogo usando o seed_data."""
+    from backend.seed_data import ATIVIDADES_CATALOGO
+    from backend.models import AtividadeCatalogo
+    atualizadas = 0
+    for seed in ATIVIDADES_CATALOGO:
+        descricao = seed.get('descricao')
+        if not descricao:
+            continue
+        ativ = AtividadeCatalogo.query.filter_by(nome=seed['nome']).first()
+        if ativ and not ativ.descricao:
+            ativ.descricao = descricao
+            atualizadas += 1
+    if atualizadas:
+        db.session.commit()
+        print(f"[sync] {atualizadas} descrições de atividades atualizadas.")
+
+
 def _ensure_runtime_columns():
     insp = inspect(db.engine)
     tabelas = set(insp.get_table_names())
@@ -174,7 +192,15 @@ def _ensure_runtime_columns():
         if 'conteudo' not in existentes:
             db.session.execute(text("ALTER TABLE evidencias ADD COLUMN conteudo BYTEA"))
 
+    if 'atividades_catalogo' in tabelas:
+        existentes_at = {col['name'] for col in insp.get_columns('atividades_catalogo')}
+        if 'descricao' not in existentes_at:
+            db.session.execute(text("ALTER TABLE atividades_catalogo ADD COLUMN descricao TEXT"))
+
     db.session.commit()
+
+    # Atualiza descrições do catálogo a partir do seed_data
+    _sync_descricoes_catalogo()
 
     # Catálogo de atividades
 
