@@ -53,6 +53,9 @@ function RotinaCard({ rotina, onClick }) {
             <div className="text-sm font-semibold text-gray-900 group-hover:text-primary-700 transition-colors truncate">
               {rotina.atividade_nome}
             </div>
+            {rotina.atividade_descricao && (
+              <div className="text-xs text-gray-500 mt-1 line-clamp-2">{rotina.atividade_descricao}</div>
+            )}
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               <PeriodoBadge periodo={rotina.periodicidade} label={PERIODO_LABELS[rotina.periodicidade]} />
               <StatusBadge status={rotina.status} label={STATUS_LABELS[rotina.status]} />
@@ -326,6 +329,14 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
             <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-xl text-sm text-orange-700 border border-orange-200">
               <Info size={16} className="shrink-0 mt-0.5" />
               <span><strong>Evidência obrigatória.</strong> Anexe pelo menos um arquivo antes de concluir a atividade.</span>
+            </div>
+          )}
+
+          {/* Descrição da atividade */}
+          {rotina.atividade_descricao && (
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
+              <p className="text-xs font-semibold text-blue-700 mb-1">O que precisa ser feito</p>
+              <p className="text-sm text-blue-800">{rotina.atividade_descricao}</p>
             </div>
           )}
 
