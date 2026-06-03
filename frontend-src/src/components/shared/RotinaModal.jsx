@@ -241,6 +241,14 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
             </div>
           )}
 
+          {/* Descrição da atividade */}
+          {rotina.atividade_descricao && (
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl">
+              <p className="text-xs font-semibold text-blue-700 mb-1">O que precisa ser feito</p>
+              <p className="text-sm text-blue-800">{rotina.atividade_descricao}</p>
+            </div>
+          )}
+
           {/* Meta info grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-xl">
             <div>
