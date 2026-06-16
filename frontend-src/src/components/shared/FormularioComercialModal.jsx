@@ -5,7 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { Modal } from '../ui/Modal';
 import { Select, Input, Textarea } from '../ui/Input';
 import Button from '../ui/Button';
-import { getReportType, REPORT_TITLES, REPORT_OBJECTIVES, buildEmptyForm } from './reportConfigs';
+import { getReportType, REPORT_TITLES, REPORT_OBJECTIVES, buildEmptyForm, validateRequiredReport } from './reportConfigs';
 import {
   FormReuniaoPerformance, FormResultadoSemanal, FormDecoesCanal,
   FormAnaliseRiscos, FormAcompanhamentoLiderados, FormComiteMensal,
@@ -292,6 +292,11 @@ export default function FormularioComercialModal({ rotinaId, rotina, currentUser
   const removeAcao = (i) => removeItem('plano_acao', i);
 
   const save = async () => {
+    if (isCustom && !validateRequiredReport(reportType, form)) {
+      toast('Preencha todos os campos obrigatórios do relatório.', 'error');
+      return;
+    }
+
     setSaving(true);
     const r = await apiFetch(`/api/rotinas/${rotinaId}/formulario`, {
       method: 'PUT', body: JSON.stringify({ formulario: form }),

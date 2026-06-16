@@ -57,6 +57,80 @@ export const REPORT_OBJECTIVES = {
   comite_mensal: 'Analisar os resultados e planejar o próximo período.',
 };
 
+const REQUIRED_FIELDS = {
+  reuniao_performance: [
+    'data_reuniao',
+    'hora_inicio',
+    'hora_termino',
+    'indicadores_apresentados',
+    'desafios_dificuldades',
+    'acompanhamento_rotatividade',
+    { list: 'participantes', fields: ['nome', 'cargo'] },
+    { list: 'plano_acao', fields: ['acao', 'responsavel', 'prazo'] },
+  ],
+  resultado_semanal: [
+    'periodo_referencia',
+    'qtd_leads',
+    'qtd_visitas',
+    'qtd_pastas',
+    'qtd_propostas',
+    'qtd_vendas',
+    'destaques_positivos',
+  ],
+  decisoes_canal: [
+    'canais_melhor_desempenho',
+    'canais_baixo_desempenho',
+    'parcerias_fortalecer',
+    'parcerias_plano_encerramento',
+    'necessidade_novos_canais',
+    'decisoes_tomadas',
+    'responsaveis_acoes',
+  ],
+  analise_riscos: [
+    { list: 'riscos', fields: ['risco', 'impacto', 'prioridade', 'plano_acao', 'responsavel'] },
+  ],
+  acompanhamento_liderados: [
+    {
+      list: 'liderados',
+      fields: [
+        'nome',
+        'meta',
+        'resultado_atual',
+        'dificuldades',
+        'necessidade_apoio',
+        'acoes_desenvolvimento',
+        'proximo_acompanhamento',
+      ],
+    },
+  ],
+  comite_mensal: [
+    'periodo_analisado',
+    'principais_resultados',
+    'aprendizados',
+    'plano_acao_proximo_mes',
+    'metas_proximo_periodo',
+    { list: 'participantes', fields: ['nome', 'cargo'] },
+  ],
+};
+
+function hasValue(value) {
+  return value !== undefined && value !== null && String(value).trim() !== '';
+}
+
+export function validateRequiredReport(reportType, form) {
+  const rules = REQUIRED_FIELDS[reportType];
+  if (!rules) return true;
+
+  return rules.every(rule => {
+    if (typeof rule === 'string') return hasValue(form?.[rule]);
+
+    const rows = form?.[rule.list];
+    return Array.isArray(rows) &&
+      rows.length > 0 &&
+      rows.every(row => rule.fields.every(field => hasValue(row?.[field])));
+  });
+}
+
 // ── Builders de formulário vazio por tipo ──
 
 export function buildEmptyForm(reportType) {
