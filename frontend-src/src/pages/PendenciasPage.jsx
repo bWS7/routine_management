@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, CheckCircle, Download, Eye, Edit } from 'lucide-react';
+import { AlertCircle, CheckCircle, Edit } from 'lucide-react';
 import { apiFetch } from '../api/client';
-import { useToast } from '../context/ToastContext';
 import { Card } from '../components/ui/Card';
 import { Table, Thead, Th, Tbody, Tr, Td } from '../components/ui/Table';
-import Button from '../components/ui/Button';
-import { EmptyState, PageSpinner } from '../components/ui/Spinner';
+import { PageSpinner } from '../components/ui/Spinner';
 import { StatusBadge } from '../components/ui/Badge';
 import { STATUS_LABELS, fmtDate } from '../utils/constants';
 import RotinaModal from '../components/shared/RotinaModal';
 
 export default function PendenciasPage() {
-  const { toast } = useToast();
   const [pendencias, setPendencias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);

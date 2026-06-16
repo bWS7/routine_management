@@ -8,7 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { Input, Select } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
-import { StatusBadge, PerfilBadge } from '../components/ui/Badge';
+import { PerfilBadge } from '../components/ui/Badge';
 import { PERFIL_LABELS } from '../utils/constants';
 
 const STATUS_USUARIO_COLORS = {

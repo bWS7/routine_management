@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, User, KeyRound } from 'lucide-react';
+import { Lock, KeyRound } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';

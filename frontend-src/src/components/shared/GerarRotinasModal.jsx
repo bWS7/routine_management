@@ -12,16 +12,14 @@ export default function GerarRotinasModal({ open, onClose, onGenerated }) {
   const [usuarios, setUsuarios] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setLoadingUsers(true);
       apiFetch('/api/usuarios/?status=ativo')
         .then(r => {
           if (r?.ok) setUsuarios(r.data);
         })
-        .finally(() => setLoadingUsers(false));
+        .catch(() => {});
     }
   }, [open]);
 

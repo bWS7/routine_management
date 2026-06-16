@@ -85,14 +85,10 @@ export default function Sidebar({ activePage, onNavigate, mobileOpen, onCloseMob
   if (!currentUser) return null;
 
   const perfil = currentUser.perfil;
-  const initial = currentUser.nome?.charAt(0).toUpperCase() || '?';
-
   const canAccess = (roles) => {
     if (!roles) return true;
     return roles.includes(perfil);
   };
-
-  const sidebarWidth = collapsed ? 'w-[60px]' : 'w-[190px]';
 
   return (
     <>

@@ -6,8 +6,8 @@ import { useToast } from '../../context/ToastContext';
 import { Modal } from '../ui/Modal';
 import { Select, Input, Textarea } from '../ui/Input';
 import Button from '../ui/Button';
-import { StatusBadge, PeriodoBadge } from '../ui/Badge';
-import { PERIODO_LABELS, STATUS_LABELS, fmtDate, fmtDatetime } from '../../utils/constants';
+import { PeriodoBadge } from '../ui/Badge';
+import { PERIODO_LABELS, fmtDate, fmtDatetime } from '../../utils/constants';
 import FormularioComercialModal from './FormularioComercialModal';
 
 function EvidenciasList({ evidencias, rotinaId, canEdit, onReload }) {

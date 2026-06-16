@@ -6,7 +6,6 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Modal } from '../components/ui/Modal';
 import { Select, Textarea, Input } from '../components/ui/Input';
-import { StatCard } from '../components/ui/StatCard';
 import { ProgressBar } from '../components/ui/StatCard';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';

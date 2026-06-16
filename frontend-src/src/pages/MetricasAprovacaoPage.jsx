@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Timer, TrendingUp, Check, X, Clock, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Timer, Check, X, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { PageSpinner, EmptyState } from '../components/ui/Spinner';

@@ -163,6 +163,60 @@ def _sync_descricoes_catalogo():
         print(f"[sync] {atualizadas} descrições de atividades atualizadas.")
 
 
+def _sync_atividades_superintendentes():
+    """Mantem o catalogo de SR alinhado aos seis relatorios personalizados."""
+    from backend.seed_data import ATIVIDADES_CATALOGO
+    from backend.models import AtividadeCatalogo
+
+    aliases = {
+        'Reunião de Performance com Liderados': ['Reunião de Performance Regional'],
+        'Resultado Semanal da Regional': ['Diagnóstico Semanal da Regional'],
+        'Decisões de Canal': [],
+        'Análise dos Riscos da Regional': ['Top 3 Riscos e Contramedidas', 'Plano de Ação Semanal Regional'],
+        'Acompanhamento e Desenvolvimento dos Liderados': ['1:1 com Gerentes de Vendas', 'Ciclo Quinzenal de Desenvolvimento'],
+        'Comitê Mensal de Resultados': ['Comitê Mensal de Resultado'],
+    }
+    sr_seeds = [seed for seed in ATIVIDADES_CATALOGO if seed.get('perfil') == 'sr']
+    nomes_finais = {seed['nome'] for seed in sr_seeds}
+    alteradas = 0
+
+    for seed in sr_seeds:
+        nomes_busca = [seed['nome'], *aliases.get(seed['nome'], [])]
+        atividade = (
+            AtividadeCatalogo.query
+            .filter(AtividadeCatalogo.perfil == 'sr', AtividadeCatalogo.nome.in_(nomes_busca))
+            .order_by(AtividadeCatalogo.ativo.desc(), AtividadeCatalogo.id.asc())
+            .first()
+        )
+
+        if not atividade:
+            atividade = AtividadeCatalogo()
+            db.session.add(atividade)
+            alteradas += 1
+
+        for campo in ['nome', 'descricao', 'periodicidade', 'perfil', 'obrigatoria', 'tipo_evidencia', 'indicador', 'ordem']:
+            valor = seed.get(campo)
+            if getattr(atividade, campo, None) != valor:
+                setattr(atividade, campo, valor)
+                alteradas += 1
+        if not atividade.ativo:
+            atividade.ativo = True
+            alteradas += 1
+
+    extras = AtividadeCatalogo.query.filter(
+        AtividadeCatalogo.perfil == 'sr',
+        ~AtividadeCatalogo.nome.in_(nomes_finais)
+    ).all()
+    for atividade in extras:
+        if atividade.ativo:
+            atividade.ativo = False
+            alteradas += 1
+
+    if alteradas:
+        db.session.commit()
+        print("[sync] Catalogo de superintendentes alinhado aos 6 relatorios personalizados.")
+
+
 def _ensure_runtime_columns():
     insp = inspect(db.engine)
     tabelas = set(insp.get_table_names())
@@ -201,6 +255,7 @@ def _ensure_runtime_columns():
 
     # Atualiza descrições do catálogo a partir do seed_data
     _sync_descricoes_catalogo()
+    _sync_atividades_superintendentes()
 
     # Catálogo de atividades
 

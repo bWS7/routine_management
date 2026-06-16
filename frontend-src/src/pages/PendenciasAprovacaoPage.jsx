@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, X, AlertTriangle, FileText, Paperclip, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Check, X, AlertTriangle, FileText, Paperclip, ExternalLink } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';

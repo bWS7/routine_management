@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   FileText, Download, Search, Filter, Eye, ChevronDown, ChevronUp,
-  CheckCircle, XCircle, Clock, AlertCircle, BarChart2, Users, TrendingUp, RefreshCw,
+  BarChart2, RefreshCw,
 } from 'lucide-react';
 import { apiFetch, downloadExport } from '../api/client';
 import { useToast } from '../context/ToastContext';
@@ -10,7 +10,7 @@ import { PeriodoBadge, StatusBadge } from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import { Select, Input } from '../components/ui/Input';
 import FormularioComercialModal from '../components/shared/FormularioComercialModal';
-import { fmtDate, fmtDatetime, PERIODO_LABELS, STATUS_LABELS } from '../utils/constants';
+import { fmtDate, PERIODO_LABELS, STATUS_LABELS } from '../utils/constants';
 
 const PERFIL_LABELS = {
   sr: 'Superintendente Regional',

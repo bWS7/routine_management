@@ -5,11 +5,18 @@
  */
 
 const SR_REPORTS_BY_ACTIVITY = {
+  'reuniao de performance com liderados': 'reuniao_performance',
+  'resultado semanal da regional': 'resultado_semanal',
+  'decisoes de canal': 'decisoes_canal',
+  'analise dos riscos da regional': 'analise_riscos',
+  'acompanhamento e desenvolvimento dos liderados': 'acompanhamento_liderados',
+  'comite mensal de resultados': 'comite_mensal',
+
+  // Aliases para rotinas antigas que ainda apontem para atividades anteriores.
   'reuniao de performance regional': 'reuniao_performance',
   'diagnostico semanal da regional': 'resultado_semanal',
-  'plano de acao semanal regional': 'analise_riscos',
-  'decisoes de canal': 'decisoes_canal',
   'top 3 riscos e contramedidas': 'analise_riscos',
+  'plano de acao semanal regional': 'analise_riscos',
   '1:1 com gerentes de vendas': 'acompanhamento_liderados',
   'ciclo quinzenal de desenvolvimento': 'acompanhamento_liderados',
   'comite mensal de resultado': 'comite_mensal',
