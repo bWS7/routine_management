@@ -1,39 +1,33 @@
 /**
  * Mapeamento de atividades do catálogo → tipo de relatório personalizado.
+ * As atividades de Superintendente Regional usam relatórios específicos.
  * Cada atividade que não tiver mapeamento aqui usará o relatório padrão.
  */
 
-// Identifica o tipo de relatório pela substring do nome da atividade
-export function getReportType(atividadeNome) {
+const SR_REPORTS_BY_ACTIVITY = {
+  'reuniao de performance regional': 'reuniao_performance',
+  'diagnostico semanal da regional': 'resultado_semanal',
+  'plano de acao semanal regional': 'analise_riscos',
+  'decisoes de canal': 'decisoes_canal',
+  'top 3 riscos e contramedidas': 'analise_riscos',
+  '1:1 com gerentes de vendas': 'acompanhamento_liderados',
+  'ciclo quinzenal de desenvolvimento': 'acompanhamento_liderados',
+  'comite mensal de resultado': 'comite_mensal',
+};
+
+function normalizeActivityName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+export function getReportType(atividadeNome, perfil) {
   if (!atividadeNome) return 'padrao';
-  const nome = atividadeNome.toLowerCase();
+  if (perfil && perfil !== 'sr') return 'padrao';
 
-  // 1. Reunião de Performance com Liderados
-  if (nome.includes('reunião de performance') || nome.includes('reunião coletiva'))
-    return 'reuniao_performance';
-
-  // 2. Resultado Semanal da Regional
-  if (nome.includes('diagnóstico semanal'))
-    return 'resultado_semanal';
-
-  // 3. Decisões de Canal
-  if (nome.includes('decisões de canal'))
-    return 'decisoes_canal';
-
-  // 4. Análise dos Riscos da Regional
-  if (nome.includes('riscos') && nome.includes('contramedidas'))
-    return 'analise_riscos';
-
-  // 5. Acompanhamento e Desenvolvimento dos Liderados
-  if (nome.includes('1:1 com gerentes') || nome.includes('1:1 com corretores') ||
-      nome.includes('ciclo quinzenal') || nome.includes('controle da meta individual'))
-    return 'acompanhamento_liderados';
-
-  // 6. Comitê Mensal de Resultados
-  if (nome.includes('comitê mensal') || nome.includes('revisão mensal'))
-    return 'comite_mensal';
-
-  return 'padrao';
+  return SR_REPORTS_BY_ACTIVITY[normalizeActivityName(atividadeNome)] || 'padrao';
 }
 
 export const REPORT_TITLES = {

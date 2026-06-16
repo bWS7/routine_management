@@ -231,7 +231,7 @@ export default function FormularioComercialModal({ rotinaId, rotina, currentUser
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(null);
 
-  const reportType = getReportType(rotina?.atividade_nome);
+  const reportType = getReportType(rotina?.atividade_nome, rotina?.perfil || currentUser?.perfil);
   const isCustom = reportType !== 'padrao';
   const title = REPORT_TITLES[reportType] || 'Relatório Padrão Comercial';
 

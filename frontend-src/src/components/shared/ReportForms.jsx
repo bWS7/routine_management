@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
-import { Input, Textarea, Select } from '../ui/Input';
+import { Input, Textarea } from '../ui/Input';
 
 const PRIORIDADES = ['Alta', 'Média', 'Baixa'];
 

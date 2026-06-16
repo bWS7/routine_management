@@ -218,7 +218,7 @@ function RelatorioRow({ rotina, onView }) {
 import { getReportType } from '../components/shared/reportConfigs';
 
 function RelatorioResumoPreview({ rotina, f }) {
-  const type = getReportType(rotina.atividade_nome);
+  const type = getReportType(rotina.atividade_nome, rotina.perfil);
 
   if (type === 'reuniao_performance') {
     return (
