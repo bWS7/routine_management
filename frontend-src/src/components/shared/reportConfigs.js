@@ -9,7 +9,7 @@ const SR_REPORTS_BY_ACTIVITY = {
   'resultado semanal da regional': 'resultado_semanal',
   'decisoes de canal': 'decisoes_canal',
   'analise dos riscos da regional': 'analise_riscos',
-  'acompanhamento e desenvolvimento dos liderados': 'acompanhamento_liderados',
+  'acompanhamento e desenvolvimento dos liderados (1:1)': 'acompanhamento_liderados',
   'comite mensal de resultados': 'comite_mensal',
 
   // Aliases para rotinas antigas que ainda apontem para atividades anteriores.
@@ -17,6 +17,7 @@ const SR_REPORTS_BY_ACTIVITY = {
   'diagnostico semanal da regional': 'resultado_semanal',
   'top 3 riscos e contramedidas': 'analise_riscos',
   'plano de acao semanal regional': 'analise_riscos',
+  'acompanhamento e desenvolvimento dos liderados': 'acompanhamento_liderados',
   '1:1 com gerentes de vendas': 'acompanhamento_liderados',
   'ciclo quinzenal de desenvolvimento': 'acompanhamento_liderados',
   'comite mensal de resultado': 'comite_mensal',
@@ -42,7 +43,7 @@ export const REPORT_TITLES = {
   resultado_semanal: 'Resultado Semanal da Regional',
   decisoes_canal: 'Decisões de Canal',
   analise_riscos: 'Análise dos Riscos da Regional',
-  acompanhamento_liderados: 'Acompanhamento e Desenvolvimento dos Liderados',
+  acompanhamento_liderados: 'Acompanhamento e Desenvolvimento dos Liderados (1:1)',
   comite_mensal: 'Comitê Mensal de Resultados',
   padrao: 'Relatório Padrão Comercial',
 };

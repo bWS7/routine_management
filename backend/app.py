@@ -173,7 +173,11 @@ def _sync_atividades_superintendentes():
         'Resultado Semanal da Regional': ['Diagnóstico Semanal da Regional'],
         'Decisões de Canal': [],
         'Análise dos Riscos da Regional': ['Top 3 Riscos e Contramedidas', 'Plano de Ação Semanal Regional'],
-        'Acompanhamento e Desenvolvimento dos Liderados': ['1:1 com Gerentes de Vendas', 'Ciclo Quinzenal de Desenvolvimento'],
+        'Acompanhamento e Desenvolvimento dos Liderados (1:1)': [
+            'Acompanhamento e Desenvolvimento dos Liderados',
+            '1:1 com Gerentes de Vendas',
+            'Ciclo Quinzenal de Desenvolvimento',
+        ],
         'Comitê Mensal de Resultados': ['Comitê Mensal de Resultado'],
     }
     sr_seeds = [seed for seed in ATIVIDADES_CATALOGO if seed.get('perfil') == 'sr']
