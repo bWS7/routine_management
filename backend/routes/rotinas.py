@@ -1039,6 +1039,7 @@ def exportar_relatorios_preenchimento():
         'Descrição da Causa', 'Necessita Apoio', 'Área de Apoio', 'Motivo Apoio',
         'Objetivo Atingido', 'Próximos Passos',
         'Qtde Evidências', 'Qtde Participantes', 'Qtde Ações no Plano',
+        'Relatório Customizado',
     ]
 
     linhas = []
@@ -1053,6 +1054,25 @@ def exportar_relatorios_preenchimento():
 
         participantes = f.get('participantes', [])
         plano = f.get('plano_acao', [])
+
+        custom_keys = [k for k in f.keys() if k not in ['categoria', 'empreendimento', 'data_execucao', 'hora_inicio', 'hora_termino', 'objetivo', 'resumo_execucao', 'principais_temas', 'resultados', 'observacao_evidencias', 'dificuldades', 'motivo_desvio_1', 'motivo_desvio_2', 'descricao_causa', 'necessita_apoio', 'area_apoio', 'motivo_apoio', 'objetivo_atingido', 'proximos_passos', 'participantes', 'plano_acao']]
+        custom_parts = []
+        for k in custom_keys:
+            val = f[k]
+            if isinstance(val, list):
+                list_parts = []
+                for item in val:
+                    if isinstance(item, dict):
+                        item_str = ", ".join(f"{ik}: {iv}" for ik, iv in item.items() if iv)
+                        if item_str:
+                            list_parts.append(f"[{item_str}]")
+                    else:
+                        list_parts.append(str(item))
+                custom_parts.append(f"{k}: " + "; ".join(list_parts))
+            else:
+                custom_parts.append(f"{k}: {val}")
+        custom_summary = " | ".join(custom_parts)
+
         linhas.append([
             r.usuario.nome if r.usuario else '',
             r.usuario.regional.nome if r.usuario and r.usuario.regional else '',
@@ -1089,6 +1109,7 @@ def exportar_relatorios_preenchimento():
             len(r.evidencias),
             len([p for p in participantes if p.get('nome')]),
             len([a for a in plano if a.get('acao')]),
+            custom_summary,
         ])
 
     return _export_csv('relatorios_preenchimento.csv', cabecalho, linhas)

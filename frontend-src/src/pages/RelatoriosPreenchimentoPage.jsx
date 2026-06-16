@@ -207,70 +207,335 @@ function RelatorioRow({ rotina, onView }) {
       {expanded && (
         <tr className="bg-gray-50 border-b border-gray-100">
           <td colSpan={8} className="px-4 py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-
-              {f.objetivo && (
-                <div>
-                  <p className="text-xs text-gray-400 font-medium mb-1">Objetivo</p>
-                  <p className="text-gray-700 text-xs">{f.objetivo}</p>
-                </div>
-              )}
-
-              {f.resumo_execucao && (
-                <div>
-                  <p className="text-xs text-gray-400 font-medium mb-1">Resumo da Execução</p>
-                  <p className="text-gray-700 text-xs">{f.resumo_execucao}</p>
-                </div>
-              )}
-
-              {f.dificuldades && (
-                <div>
-                  <p className="text-xs text-gray-400 font-medium mb-1">Dificuldades</p>
-                  <p className="text-gray-700 text-xs bg-yellow-50 rounded p-2">{f.dificuldades}</p>
-                </div>
-              )}
-
-              {f.proximos_passos && (
-                <div>
-                  <p className="text-xs text-gray-400 font-medium mb-1">Próximos Passos</p>
-                  <p className="text-gray-700 text-xs">{f.proximos_passos}</p>
-                </div>
-              )}
-
-              {f.resultados && Object.entries(f.resultados).some(([, v]) => v.resultado_atual) && (
-                <div className="sm:col-span-2 lg:col-span-3">
-                  <p className="text-xs text-gray-400 font-medium mb-2">Indicadores</p>
-                  <div className="flex flex-wrap gap-3">
-                    {Object.entries(f.resultados).filter(([, v]) => v.resultado_atual).map(([ind, v]) => (
-                      <div key={ind} className="bg-white border border-gray-100 rounded-lg px-3 py-2">
-                        <p className="text-xs text-gray-400">{ind}</p>
-                        <p className="text-sm font-semibold text-gray-800">{v.resultado_atual}</p>
-                        {v.meta && <p className="text-xs text-gray-400">Meta: {v.meta}</p>}
-                        {v.status && <StatusIndicador valor={v.status} />}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Evidências:</span>
-                <span className="text-xs font-semibold text-gray-700">{rotina.evidencias?.length || 0} arquivo(s)</span>
-              </div>
-
-              {f.necessita_apoio && f.necessita_apoio !== 'Não' && (
-                <div>
-                  <p className="text-xs text-gray-400 font-medium mb-1">Escalonamento</p>
-                  <p className="text-xs text-gray-700">{f.necessita_apoio} — {f.area_apoio || ''}</p>
-                </div>
-              )}
-            </div>
+            <RelatorioResumoPreview rotina={rotina} f={f} />
           </td>
         </tr>
       )}
     </>
   );
 }
+
+import { getReportType } from '../components/shared/reportConfigs';
+
+function RelatorioResumoPreview({ rotina, f }) {
+  const type = getReportType(rotina.atividade_nome);
+
+  if (type === 'reuniao_performance') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div><strong>Data:</strong> {f.data_reuniao || '—'}</div>
+          <div><strong>Início:</strong> {f.hora_inicio || '—'}</div>
+          <div><strong>Término:</strong> {f.hora_termino || '—'}</div>
+        </div>
+        {f.participantes?.length > 0 && (
+          <div>
+            <strong>Participantes:</strong>
+            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+              {f.participantes.map((p, idx) => p.nome && (
+                <li key={idx}>{p.nome} {p.cargo ? `(${p.cargo})` : ''}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {f.indicadores_apresentados && (
+          <div>
+            <strong>Principais Indicadores Apresentados:</strong>
+            <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.indicadores_apresentados}</p>
+          </div>
+        )}
+        {f.desafios_dificuldades && (
+          <div>
+            <strong>Desafios e Dificuldades Identificados:</strong>
+            <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.desafios_dificuldades}</p>
+          </div>
+        )}
+        {f.plano_acao?.length > 0 && (
+          <div>
+            <strong>Plano de Ação Definido:</strong>
+            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+              {f.plano_acao.map((a, idx) => a.acao && (
+                <li key={idx}>
+                  <strong>{a.acao}</strong> - Resp: {a.responsavel || '—'} (Prazo: {a.prazo || '—'})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {f.acompanhamento_rotatividade && (
+          <div>
+            <strong>Acompanhamento da Rotatividade da Equipe:</strong>
+            <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.acompanhamento_rotatividade}</p>
+          </div>
+        )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'resultado_semanal') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div><strong>Período de Referência:</strong> {f.periodo_referencia || '—'}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="bg-white p-2 rounded border border-gray-100">
+            <div className="text-gray-400">Leads</div>
+            <div className="text-sm font-semibold">{f.qtd_leads || '0'}</div>
+          </div>
+          <div className="bg-white p-2 rounded border border-gray-100">
+            <div className="text-gray-400">Visitas</div>
+            <div className="text-sm font-semibold">{f.qtd_visitas || '0'}</div>
+          </div>
+          <div className="bg-white p-2 rounded border border-gray-100">
+            <div className="text-gray-400">Pastas</div>
+            <div className="text-sm font-semibold">{f.qtd_pastas || '0'}</div>
+          </div>
+          <div className="bg-white p-2 rounded border border-gray-100">
+            <div className="text-gray-400">Propostas</div>
+            <div className="text-sm font-semibold">{f.qtd_propostas || '0'}</div>
+          </div>
+          <div className="bg-white p-2 rounded border border-gray-100">
+            <div className="text-gray-400">Vendas</div>
+            <div className="text-sm font-semibold">{f.qtd_vendas || '0'}</div>
+          </div>
+        </div>
+        {f.destaques_positivos && (
+          <div>
+            <strong>Destaques Positivos da Semana:</strong>
+            <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.destaques_positivos}</p>
+          </div>
+        )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'decisoes_canal') {
+    return (
+      <div className="space-y-2 text-xs">
+        {f.canais_melhor_desempenho && (
+          <div><strong>Canais com melhor desempenho:</strong> <p className="text-gray-700">{f.canais_melhor_desempenho}</p></div>
+        )}
+        {f.canais_baixo_desempenho && (
+          <div><strong>Canais com baixo desempenho:</strong> <p className="text-gray-700">{f.canais_baixo_desempenho}</p></div>
+        )}
+        {f.parcerias_fortalecer && (
+          <div><strong>Parcerias a serem fortalecidas:</strong> <p className="text-gray-700">{f.parcerias_fortalecer}</p></div>
+        )}
+        {f.parcerias_plano_encerramento && (
+          <div><strong>Parcerias (Plano de ação ou encerramento):</strong> <p className="text-gray-700">{f.parcerias_plano_encerramento}</p></div>
+        )}
+        {f.necessidade_novos_canais && (
+          <div><strong>Necessidade de abertura de novos canais:</strong> <p className="text-gray-700">{f.necessidade_novos_canais}</p></div>
+        )}
+        {f.decisoes_tomadas && (
+          <div className="bg-white p-2 rounded border border-gray-100">
+            <strong>Decisões Tomadas:</strong>
+            <p className="text-gray-800 whitespace-pre-wrap mt-1">{f.decisoes_tomadas}</p>
+          </div>
+        )}
+        {f.responsaveis_acoes && (
+          <div><strong>Responsáveis pelas Ações:</strong> <p className="text-gray-700">{f.responsaveis_acoes}</p></div>
+        )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'analise_riscos') {
+    return (
+      <div className="space-y-3 text-xs">
+        <strong>Análise dos Riscos da Regional:</strong>
+        {f.riscos?.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] border border-gray-100 rounded">
+              <thead className="bg-gray-100 text-gray-500">
+                <tr>
+                  <th className="p-1.5 text-left">Risco Identificado</th>
+                  <th className="p-1.5 text-left">Impacto Esperado</th>
+                  <th className="p-1.5 text-left">Prioridade</th>
+                  <th className="p-1.5 text-left">Plano de Ação</th>
+                  <th className="p-1.5 text-left">Responsável</th>
+                </tr>
+              </thead>
+              <tbody>
+                {f.riscos.map((r, idx) => r.risco && (
+                  <tr key={idx} className="border-b border-gray-100 bg-white">
+                    <td className="p-1.5 font-medium">{r.risco}</td>
+                    <td className="p-1.5">{r.impacto || '—'}</td>
+                    <td className="p-1.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                        r.prioridade === 'Alta' ? 'bg-red-100 text-red-700' :
+                        r.prioridade === 'Média' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>{r.prioridade}</span>
+                    </td>
+                    <td className="p-1.5">{r.plano_acao || '—'}</td>
+                    <td className="p-1.5">{r.responsavel || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-gray-400">Nenhum risco mapeado.</p>}
+        <div className="text-gray-400 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'acompanhamento_liderados') {
+    return (
+      <div className="space-y-3 text-xs">
+        <strong>Acompanhamento e Desenvolvimento dos Liderados:</strong>
+        {f.liderados?.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] border border-gray-100 rounded">
+              <thead className="bg-gray-100 text-gray-500">
+                <tr>
+                  <th className="p-1.5 text-left">Liderado</th>
+                  <th className="p-1.5 text-left">Meta Definida</th>
+                  <th className="p-1.5 text-left">Resultado Atual</th>
+                  <th className="p-1.5 text-left">Dificuldades</th>
+                  <th className="p-1.5 text-left">Apoio Necessário</th>
+                  <th className="p-1.5 text-left">Ações Desenvolvimento</th>
+                  <th className="p-1.5 text-left">Próximo Acompanhamento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {f.liderados.map((l, idx) => l.nome && (
+                  <tr key={idx} className="border-b border-gray-100 bg-white">
+                    <td className="p-1.5 font-medium">{l.nome}</td>
+                    <td className="p-1.5">{l.meta || '—'}</td>
+                    <td className="p-1.5">{l.resultado_atual || '—'}</td>
+                    <td className="p-1.5">{l.dificuldades || '—'}</td>
+                    <td className="p-1.5">{l.necessidade_apoio || '—'}</td>
+                    <td className="p-1.5">{l.acoes_desenvolvimento || '—'}</td>
+                    <td className="p-1.5">{l.proximo_acompanhamento || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-gray-400">Nenhum liderado acompanhado.</p>}
+        <div className="text-gray-400 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'comite_mensal') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div><strong>Período Analisado:</strong> {f.periodo_analisado || '—'}</div>
+        </div>
+        {f.participantes?.length > 0 && (
+          <div>
+            <strong>Participantes:</strong> {f.participantes.map(p => p.nome).filter(Boolean).join(', ') || '—'}
+          </div>
+        )}
+        {f.principais_resultados && (
+          <div>
+            <strong>Principais Resultados Alcançados:</strong>
+            <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.principais_resultados}</p>
+          </div>
+        )}
+        {f.aprendizados && (
+          <div>
+            <strong>Aprendizados do Período:</strong>
+            <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.aprendizados}</p>
+          </div>
+        )}
+        {f.plano_acao_proximo_mes && (
+          <div>
+            <strong>Plano de Ação para o Próximo Mês:</strong>
+            <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.plano_acao_proximo_mes}</p>
+          </div>
+        )}
+        {f.metas_proximo_periodo && (
+          <div>
+            <strong>Metas do Próximo Período:</strong>
+            <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.metas_proximo_periodo}</p>
+          </div>
+        )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  // Legacy fallback
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+      {f.objetivo && (
+        <div>
+          <p className="text-xs text-gray-400 font-medium mb-1">Objetivo</p>
+          <p className="text-gray-700 text-xs">{f.objetivo}</p>
+        </div>
+      )}
+
+      {f.resumo_execucao && (
+        <div>
+          <p className="text-xs text-gray-400 font-medium mb-1">Resumo da Execução</p>
+          <p className="text-gray-700 text-xs">{f.resumo_execucao}</p>
+        </div>
+      )}
+
+      {f.dificuldades && (
+        <div>
+          <p className="text-xs text-gray-400 font-medium mb-1">Dificuldades</p>
+          <p className="text-gray-700 text-xs bg-yellow-50 rounded p-2">{f.dificuldades}</p>
+        </div>
+      )}
+
+      {f.proximos_passos && (
+        <div>
+          <p className="text-xs text-gray-400 font-medium mb-1">Próximos Passos</p>
+          <p className="text-gray-700 text-xs">{f.proximos_passos}</p>
+        </div>
+      )}
+
+      {f.resultados && Object.entries(f.resultados).some(([, v]) => v.resultado_atual) && (
+        <div className="sm:col-span-2 lg:col-span-3">
+          <p className="text-xs text-gray-400 font-medium mb-2">Indicadores</p>
+          <div className="flex flex-wrap gap-3">
+            {Object.entries(f.resultados).filter(([, v]) => v.resultado_atual).map(([ind, v]) => (
+              <div key={ind} className="bg-white border border-gray-100 rounded-lg px-3 py-2">
+                <p className="text-xs text-gray-400">{ind}</p>
+                <p className="text-sm font-semibold text-gray-800">{v.resultado_atual}</p>
+                {v.meta && <p className="text-xs text-gray-400">Meta: {v.meta}</p>}
+                {v.status && <StatusIndicador valor={v.status} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-400">Evidências:</span>
+        <span className="text-xs font-semibold text-gray-700">{rotina.evidencias?.length || 0} arquivo(s)</span>
+      </div>
+
+      {f.necessita_apoio && f.necessita_apoio !== 'Não' && (
+        <div>
+          <p className="text-xs text-gray-400 font-medium mb-1">Escalonamento</p>
+          <p className="text-xs text-gray-700">{f.necessita_apoio} — {f.area_apoio || ''}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function RelatoriosPreenchimentoPage() {
