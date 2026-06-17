@@ -229,9 +229,12 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
 
   if (!rotinaId) return null;
 
+  const isOverdue = !!rotina?.pendente_prazo;
   const canEdit = currentUser?.perfil === 'admin' ||
                   rotina?.usuario_id === currentUser?.id ||
                   currentUser?.perfil === 'sr';
+  const canFill = canEdit && !isOverdue;
+  const canRegisterOverdue = canEdit && isOverdue;
 
   const canReenviar = rotina?.status_aprovacao === 'reprovada' &&
                       (rotina?.usuario_id === currentUser?.id || currentUser?.perfil === 'admin');
@@ -248,6 +251,10 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   const showAcao = status === 'nao_realizada';
 
   const save = async () => {
+    if (isOverdue && status !== 'nao_realizada') {
+      toast('Atividade vencida. Registre como nao realizada com justificativa e plano de acao.', 'error');
+      return;
+    }
     if (status === 'nao_realizada' && (!justificativa || !acaoCorretiva)) {
       toast('Preencha a justificativa e o plano de ação', 'error');
       return;
@@ -294,6 +301,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
               variant={rotina?.formulario_preenchido ? 'secondary' : 'primary'}
               icon={FileText}
               onClick={() => setShowFormulario(true)}
+              disabled={!canFill && !rotina?.formulario_preenchido}
             >
               {rotina?.formulario_preenchido ? 'Ver Relatório' : 'Preencher Relatório'}
             </Button>
@@ -310,8 +318,14 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
         <div className="flex justify-center py-12"><div className="h-6 w-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : rotina && (
         <div className="space-y-5">
+          {isOverdue && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl text-sm text-red-700 border border-red-200">
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <span>Atividade vencida. O preenchimento foi bloqueado; registre como nao realizada com justificativa e plano de acao.</span>
+            </div>
+          )}
           {/* Formulário obrigatório alert */}
-          {!rotina.formulario_preenchido && (
+          {!rotina.formulario_preenchido && !isOverdue && (
             <div className="flex items-start gap-2 p-3 bg-warning-light rounded-xl text-sm text-warning-dark border border-yellow-200">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
               <span>O <strong>Relatório Comercial</strong> é obrigatório. Preencha-o antes de concluir a atividade.</span>
@@ -324,7 +338,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
             </div>
           )}
 
-          {(!rotina.evidencias || rotina.evidencias.length === 0) && (
+          {(!rotina.evidencias || rotina.evidencias.length === 0) && !isOverdue && (
             <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-xl text-sm text-orange-700 border border-orange-200">
               <Info size={16} className="shrink-0 mt-0.5" />
               <span><strong>Evidência obrigatória.</strong> Anexe pelo menos um arquivo antes de concluir a atividade.</span>
@@ -394,28 +408,28 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
 
           {/* Status */}
           <Select label="Status" value={status} onChange={e => setStatus(e.target.value)} disabled={!canEdit} required>
-            <option value="nao_iniciada">Não Iniciada</option>
-            <option value="em_andamento">Em Andamento</option>
-            <option value="concluida">Concluída</option>
+            <option value="nao_iniciada" disabled={isOverdue}>Não Iniciada</option>
+            <option value="em_andamento" disabled={isOverdue}>Em Andamento</option>
+            <option value="concluida" disabled={isOverdue}>Concluída</option>
             <option value="nao_realizada">Não Realizada</option>
           </Select>
 
           <Textarea label="Comentário" value={comentario} onChange={e => setComentario(e.target.value)}
-            rows={2} placeholder="Observações sobre a execução..." disabled={!canEdit} required />
+            rows={2} placeholder="Observações sobre a execução..." disabled={!canFill} required />
 
           {/* Plano da semana (sr, gv, cd) */}
           {['sr', 'gv', 'cd'].includes(rotina.perfil) && (
             <Textarea label="Plano da Semana" value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
-              rows={2} placeholder="Registre o plano da semana..." disabled={!canEdit} />
+              rows={2} placeholder="Registre o plano da semana..." disabled={!canFill} />
           )}
 
           {/* CD fields */}
           {rotina.perfil === 'cd' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Textarea label="Checklist" value={checklist} onChange={e => setChecklist(e.target.value)}
-                rows={3} placeholder="Checklist operacional..." disabled={!canEdit} />
+                rows={3} placeholder="Checklist operacional..." disabled={!canFill} />
               <Textarea label="Relatório" value={relatorio} onChange={e => setRelatorio(e.target.value)}
-                rows={3} placeholder="Resumo do relatório..." disabled={!canEdit} />
+                rows={3} placeholder="Resumo do relatório..." disabled={!canFill} />
             </div>
           )}
 
@@ -423,30 +437,30 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
           {rotina.perfil === 'sp' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Textarea label="Visitas / Ativações" value={visitas} onChange={e => setVisitas(e.target.value)}
-                rows={3} disabled={!canEdit} />
+                rows={3} disabled={!canFill} />
               <Textarea label="Resultados por Visita" value={resultados} onChange={e => setResultados(e.target.value)}
-                rows={3} disabled={!canEdit} />
+                rows={3} disabled={!canFill} />
               <Textarea label="Carteira Ativa" value={carteira} onChange={e => setCarteira(e.target.value)}
-                rows={3} disabled={!canEdit} />
+                rows={3} disabled={!canFill} />
               <Textarea label="Metas do Canal" value={metas} onChange={e => setMetas(e.target.value)}
-                rows={3} disabled={!canEdit} />
+                rows={3} disabled={!canFill} />
             </div>
           )}
 
           {/* Justificativa */}
           {showJustificativa && (
             <Textarea label="Justificativa" value={justificativa} onChange={e => setJustificativa(e.target.value)}
-              rows={2} placeholder="Por que não foi realizada?" disabled={!canEdit} required />
+              rows={2} placeholder="Por que não foi realizada?" disabled={!(canFill || canRegisterOverdue)} required />
           )}
 
           {/* Ação corretiva */}
           {showAcao && (
             <>
               <Textarea label="Ação Corretiva" value={acaoCorretiva} onChange={e => setAcaoCorretiva(e.target.value)}
-                rows={2} placeholder="O que será feito para corrigir?" disabled={!canEdit} required />
+                rows={2} placeholder="O que será feito para corrigir?" disabled={!(canFill || canRegisterOverdue)} required />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Responsável pela ação" value={responsavel} onChange={e => setResponsavel(e.target.value)} disabled={!canEdit} required />
-                <Input type="date" label="Novo prazo" value={novoPrazo} onChange={e => setNovoPrazo(e.target.value)} disabled={!canEdit} required />
+                <Input label="Responsável pela ação" value={responsavel} onChange={e => setResponsavel(e.target.value)} disabled={!(canFill || canRegisterOverdue)} required />
+                <Input type="date" label="Novo prazo" value={novoPrazo} onChange={e => setNovoPrazo(e.target.value)} disabled={!(canFill || canRegisterOverdue)} required />
               </div>
             </>
           )}
@@ -457,7 +471,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
               <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Evidências e Anexos</h4>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">Obrigatório</span>
             </div>
-            {status === 'concluida' && (!rotina.evidencias || rotina.evidencias.length === 0) && (
+            {status === 'concluida' && (!rotina.evidencias || rotina.evidencias.length === 0) && !isOverdue && (
               <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
                 Anexe pelo menos uma evidência para concluir esta atividade.
               </p>
@@ -465,7 +479,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
             <EvidenciasList
               evidencias={rotina.evidencias}
               rotinaId={rotinaId}
-              canEdit={canEdit}
+              canEdit={canFill}
               onReload={() => loadRotina(true)}
             />
           </div>
@@ -491,7 +505,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
         rotinaId={rotinaId}
         rotina={rotina}
         currentUser={currentUser}
-        readOnly={!canEdit}
+        readOnly={!canFill}
         onClose={() => setShowFormulario(false)}
         onSaved={() => loadRotina(true)}
       />
@@ -537,15 +551,16 @@ export default function RotinasPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Select value={periodo} onChange={e => setPeriodo(e.target.value)} className="w-36">
           <option value="todas">Todas</option>
+          <option value="diaria">Diaria</option>
           <option value="semanal">Semanal</option>
           <option value="quinzenal">Quinzenal</option>
           <option value="mensal">Mensal</option>
         </Select>
         <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-44">
           <option value="">Todos os Status</option>
-          <option value="nao_iniciada">Não Iniciada</option>
+          <option value="nao_iniciada">Nao Iniciada</option>
           <option value="em_andamento">Em Andamento</option>
-          <option value="concluida">Concluída</option>
+          <option value="concluida">Concluida</option>
           <option value="nao_realizada">Não Realizada</option>
         </Select>
         <Button variant="secondary" icon={Download} onClick={exportar} className="ml-auto">Exportar CSV</Button>

@@ -62,7 +62,7 @@ function buildLegacyInitialForm() {
 
 // ── Legacy form (Relatório Padrão) ───────────────────────────
 function LegacyForm({ form, set, setResultado, setParticipante, addParticipante, removeParticipante, setAcao, addAcao, removeAcao, readOnly, rotina, currentUser }) {
-  const periodicidadeLabel = { semanal: 'Semanal', quinzenal: 'Quinzenal', mensal: 'Mensal' }[rotina?.periodicidade] || '';
+  const periodicidadeLabel = { diaria: 'Diaria', semanal: 'Semanal', quinzenal: 'Quinzenal', mensal: 'Mensal' }[rotina?.periodicidade] || '';
 
   return (
     <div className="space-y-5">

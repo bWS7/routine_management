@@ -15,6 +15,8 @@ from dateutil.relativedelta import relativedelta
 
 rotinas_bp = Blueprint('rotinas', __name__)
 
+PERIODICIDADES = ('diaria', 'semanal', 'quinzenal', 'mensal')
+
 
 def get_current_user():
     uid = int(get_jwt_identity())
@@ -48,7 +50,10 @@ def allowed_file(filename):
 
 def get_periodo(tipo, referencia=None):
     hoje = referencia or date.today()
-    if tipo == 'semanal':
+    if tipo == 'diaria':
+        inicio = hoje
+        fim = hoje
+    elif tipo == 'semanal':
         inicio = hoje - timedelta(days=hoje.weekday())
         fim = inicio + timedelta(days=6)
     elif tipo == 'quinzenal':
@@ -66,6 +71,31 @@ def get_periodo(tipo, referencia=None):
     return inicio, fim
 
 
+def filtro_periodo_atual(model, referencia):
+    from sqlalchemy import or_, and_
+
+    filtros = []
+    for periodicidade in PERIODICIDADES:
+        inicio, fim = get_periodo(periodicidade, referencia)
+        filtros.append(and_(
+            model.periodicidade == periodicidade,
+            model.periodo_inicio >= inicio,
+            model.periodo_fim <= fim
+        ))
+    return or_(*filtros)
+
+
+def rotina_vencida_pendente(rotina):
+    prazo_limite = rotina.prazo_limite
+    return (
+        rotina.atividade
+        and rotina.atividade.obrigatoria
+        and rotina.status in ['nao_iniciada', 'em_andamento']
+        and prazo_limite
+        and prazo_limite < date.today()
+    )
+
+
 @rotinas_bp.route('/gerar', methods=['POST'])
 @jwt_required()
 def gerar_rotinas():
@@ -76,7 +106,7 @@ def gerar_rotinas():
     data = request.get_json() or {}
     usuario_ids = data.get('usuario_ids')  # Lista de IDs ou None para todos
     referencia_str = data.get('referencia')
-    periodicidade_filtro = data.get('periodicidade') # 'semanal', 'quinzenal', 'mensal' ou None
+    periodicidade_filtro = data.get('periodicidade') # 'diaria', 'semanal', 'quinzenal', 'mensal' ou None
     
     referencia = date.fromisoformat(referencia_str) if referencia_str else date.today()
 
@@ -129,17 +159,8 @@ def listar():
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
     if periodo == 'todas':
-        sem_inicio, sem_fim = get_periodo('semanal', referencia)
-        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
-        men_inicio, men_fim = get_periodo('mensal', referencia)
-
-        from sqlalchemy import or_, and_
         query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            or_(
-                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
-                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
-                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
-            )
+            filtro_periodo_atual(Rotina, referencia)
         )
     else:
         inicio, fim = get_periodo(periodo, referencia)
@@ -194,8 +215,11 @@ def atualizar(rid):
 
     data = request.get_json()
     status_anterior = r.status
+    vencida_pendente = rotina_vencida_pendente(r)
 
     if 'status' in data:
+        if vencida_pendente and data['status'] != 'nao_realizada':
+            return jsonify({'erro': 'Atividade vencida. Registre como nao realizada com justificativa e plano de acao.'}), 400
         if data['status'] == 'concluida':
             if not r.formulario_preenchido:
                 return jsonify({'erro': 'Preencha o Relatório Comercial antes de concluir a atividade'}), 400
@@ -236,6 +260,9 @@ def atualizar(rid):
         r.carteira_ativa = data['carteira_ativa']
     if 'metas_canal' in data:
         r.metas_canal = data['metas_canal']
+
+    if vencida_pendente and r.status != 'nao_realizada':
+        return jsonify({'erro': 'Atividade vencida. Nao e possivel preencher ou concluir apos o prazo.'}), 400
 
     if r.status == 'nao_realizada' and (not r.justificativa or not r.acao_corretiva):
         return jsonify({'erro': 'Justificativa e plano de ação são obrigatórios para atividades não realizadas'}), 400
@@ -287,6 +314,8 @@ def upload_evidencia(rid):
     rotina = Rotina.query.get_or_404(rid)
     if not can_access_rotina(me, rotina):
         return jsonify({'erro': 'Acesso negado'}), 403
+    if rotina_vencida_pendente(rotina):
+        return jsonify({'erro': 'Atividade vencida. Nao e possivel anexar evidencias apos o prazo.'}), 400
 
     arquivo = request.files.get('arquivo')
     if not arquivo or not arquivo.filename:
@@ -375,20 +404,11 @@ def minha_aderencia():
     data_ref = request.args.get('data_ref')
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
     if periodo == 'todas':
-        sem_inicio, sem_fim = get_periodo('semanal', referencia)
-        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
-        men_inicio, men_fim = get_periodo('mensal', referencia)
-
-        from sqlalchemy import or_, and_
+        inicio, fim = get_periodo('mensal', referencia)
         rotinas = Rotina.query.filter(
             Rotina.usuario_id == me.id,
-            or_(
-                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
-                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
-                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
-            )
+            filtro_periodo_atual(Rotina, referencia)
         ).all()
-        inicio, fim = men_inicio, men_fim
     else:
         inicio, fim = get_periodo(periodo, referencia)
         rotinas = Rotina.query.filter(
@@ -435,17 +455,8 @@ def exportar_rotinas():
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
     if periodo == 'todas':
-        sem_inicio, sem_fim = get_periodo('semanal', referencia)
-        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
-        men_inicio, men_fim = get_periodo('mensal', referencia)
-
-        from sqlalchemy import or_, and_
         query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            or_(
-                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
-                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
-                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
-            )
+            filtro_periodo_atual(Rotina, referencia)
         )
     else:
         inicio, fim = get_periodo(periodo, referencia)
@@ -509,19 +520,10 @@ def dashboard():
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
     if periodo == 'todas':
-        sem_inicio, sem_fim = get_periodo('semanal', referencia)
-        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
-        men_inicio, men_fim = get_periodo('mensal', referencia)
-        inicio, fim = men_inicio, men_fim
-
-        from sqlalchemy import or_, and_
+        inicio, fim = get_periodo('mensal', referencia)
         query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Usuario.status == 'ativo',
-            or_(
-                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
-                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
-                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
-            )
+            filtro_periodo_atual(Rotina, referencia)
         )
     else:
         inicio, fim = get_periodo(periodo, referencia)
@@ -639,18 +641,9 @@ def exportar_dashboard():
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
     if periodo == 'todas':
-        sem_inicio, sem_fim = get_periodo('semanal', referencia)
-        quin_inicio, quin_fim = get_periodo('quinzenal', referencia)
-        men_inicio, men_fim = get_periodo('mensal', referencia)
-
-        from sqlalchemy import or_, and_
         query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Usuario.status == 'ativo',
-            or_(
-                and_(Rotina.periodicidade == 'semanal', Rotina.periodo_inicio >= sem_inicio, Rotina.periodo_fim <= sem_fim),
-                and_(Rotina.periodicidade == 'quinzenal', Rotina.periodo_inicio >= quin_inicio, Rotina.periodo_fim <= quin_fim),
-                and_(Rotina.periodicidade == 'mensal', Rotina.periodo_inicio >= men_inicio, Rotina.periodo_fim <= men_fim)
-            )
+            filtro_periodo_atual(Rotina, referencia)
         )
     else:
         inicio, fim = get_periodo(periodo, referencia)
@@ -690,8 +683,7 @@ def pendencias():
 
     query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).join(AtividadeCatalogo).filter(
         Rotina.status.in_(['nao_iniciada', 'em_andamento']),
-        AtividadeCatalogo.obrigatoria == True,
-        Rotina.periodo_fim < date.today()
+        AtividadeCatalogo.obrigatoria == True
     )
 
     if me.perfil == 'sr':
@@ -699,7 +691,8 @@ def pendencias():
     elif me.perfil not in ['admin']:
         query = query.filter(Rotina.usuario_id == me.id)
 
-    rotinas = query.order_by(Rotina.periodo_fim).all()
+    rotinas = [r for r in query.all() if rotina_vencida_pendente(r)]
+    rotinas.sort(key=lambda r: r.prazo_limite or r.periodo_fim)
     return jsonify([r.to_dict() for r in rotinas])
 
 
@@ -904,6 +897,8 @@ def salvar_formulario(rid):
     r = Rotina.query.get_or_404(rid)
     if not can_access_rotina(me, r):
         return jsonify({'erro': 'Acesso negado'}), 403
+    if rotina_vencida_pendente(r):
+        return jsonify({'erro': 'Atividade vencida. Nao e possivel preencher relatorio apos o prazo.'}), 400
 
     data = request.get_json() or {}
     formulario = data.get('formulario', {})

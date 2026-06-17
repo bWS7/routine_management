@@ -15,10 +15,18 @@ export const STATUS_LABELS = {
 };
 
 export const PERIODO_LABELS = {
+  diaria:    'Diaria',
   semanal:   'Semanal',
   quinzenal: 'Quinzenal',
   mensal:    'Mensal',
 };
+
+export const PERIODICIDADE_OPTIONS = [
+  { value: 'diaria', label: PERIODO_LABELS.diaria },
+  { value: 'semanal', label: PERIODO_LABELS.semanal },
+  { value: 'quinzenal', label: PERIODO_LABELS.quinzenal },
+  { value: 'mensal', label: PERIODO_LABELS.mensal },
+];
 
 export const STATUS_COLORS = {
   nao_iniciada:  'bg-gray-100 text-gray-600',
@@ -28,6 +36,7 @@ export const STATUS_COLORS = {
 };
 
 export const PERIODO_COLORS = {
+  diaria:    'bg-teal-50 text-teal-700',
   semanal:   'bg-blue-50 text-blue-700',
   quinzenal: 'bg-purple-50 text-purple-700',
   mensal:    'bg-orange-50 text-orange-700',

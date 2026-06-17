@@ -198,7 +198,7 @@ def _sync_atividades_superintendentes():
             db.session.add(atividade)
             alteradas += 1
 
-        for campo in ['nome', 'descricao', 'periodicidade', 'perfil', 'obrigatoria', 'tipo_evidencia', 'indicador', 'ordem']:
+        for campo in ['nome', 'descricao', 'periodicidade', 'perfil', 'obrigatoria', 'tipo_evidencia', 'indicador', 'prazo_padrao', 'ordem']:
             valor = seed.get(campo)
             if getattr(atividade, campo, None) != valor:
                 setattr(atividade, campo, valor)
@@ -248,7 +248,7 @@ def _sync_atividades_parcerias():
             db.session.add(atividade)
             alteradas += 1
 
-        for campo in ['nome', 'descricao', 'periodicidade', 'perfil', 'obrigatoria', 'tipo_evidencia', 'indicador', 'ordem']:
+        for campo in ['nome', 'descricao', 'periodicidade', 'perfil', 'obrigatoria', 'tipo_evidencia', 'indicador', 'prazo_padrao', 'ordem']:
             valor = seed.get(campo)
             if getattr(atividade, campo, None) != valor:
                 setattr(atividade, campo, valor)

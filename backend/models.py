@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from backend.utils.dates import get_now_br
 from backend.extensions import db
 import bcrypt
@@ -66,7 +66,7 @@ class AtividadeCatalogo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(200), nullable=False)
     descricao = db.Column(db.Text)
-    periodicidade = db.Column(db.String(20), nullable=False)  # semanal, quinzenal, mensal
+    periodicidade = db.Column(db.String(20), nullable=False)  # diaria, semanal, quinzenal, mensal
     perfil = db.Column(db.String(50), nullable=False)
     obrigatoria = db.Column(db.Boolean, default=True)
     tipo_evidencia = db.Column(db.String(100))
@@ -128,7 +128,15 @@ class Rotina(db.Model):
     aprovador = db.relationship('Usuario', foreign_keys=[aprovador_id], lazy=True)
     aprovacoes = db.relationship('AprovacaoRotina', backref='rotina', lazy=True)
 
+    @property
+    def prazo_limite(self):
+        if not self.periodo_inicio:
+            return None
+        dias = self.atividade.prazo_padrao if self.atividade and self.atividade.prazo_padrao else 1
+        return self.periodo_inicio + timedelta(days=max(int(dias), 1) - 1)
+
     def to_dict(self):
+        prazo_limite = self.prazo_limite
         return {
             'id': self.id,
             'usuario_id': self.usuario_id,
@@ -142,6 +150,7 @@ class Rotina(db.Model):
             'perfil': self.atividade.perfil if self.atividade else None,
             'periodo_inicio': self.periodo_inicio.isoformat() if self.periodo_inicio else None,
             'periodo_fim': self.periodo_fim.isoformat() if self.periodo_fim else None,
+            'prazo_limite': prazo_limite.isoformat() if prazo_limite else None,
             'periodicidade': self.periodicidade,
             'status': self.status,
             'data_conclusao': self.data_conclusao.replace(tzinfo=timezone.utc).isoformat() if self.data_conclusao else None,
@@ -164,6 +173,12 @@ class Rotina(db.Model):
             'aprovador_nome': self.aprovador.nome if self.aprovador else None,
             'data_aprovacao': self.data_aprovacao.replace(tzinfo=timezone.utc).isoformat() if self.data_aprovacao else None,
             'motivo_reprovacao': self.motivo_reprovacao,
+            'pendente_prazo': (
+                self.atividade.obrigatoria
+                and self.status in ['nao_iniciada', 'em_andamento']
+                and prazo_limite
+                and prazo_limite < datetime.now(timezone.utc).date()
+            ) if self.atividade else False,
             'evidencias': [e.to_dict() for e in self.evidencias],
             'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None,
             'atualizado_em': self.atualizado_em.replace(tzinfo=timezone.utc).isoformat() if self.atualizado_em else None

@@ -71,6 +71,7 @@ export default function GerarRotinasModal({ open, onClose, onGenerated }) {
           </label>
           <Select value={periodicidade} onChange={e => setPeriodicidade(e.target.value)}>
             <option value="todas">Todas as Atividades Ativas</option>
+            <option value="diaria">Apenas Diarias</option>
             <option value="semanal">Apenas Semanais</option>
             <option value="quinzenal">Apenas Quinzenais</option>
             <option value="mensal">Apenas Mensais</option>

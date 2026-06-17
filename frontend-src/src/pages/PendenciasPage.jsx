@@ -71,7 +71,7 @@ export default function PendenciasPage() {
                       )}
                     </div>
                   </Td>
-                  <Td className="text-error font-semibold text-xs">{fmtDate(r.periodo_fim)}</Td>
+                  <Td className="text-error font-semibold text-xs">{fmtDate(r.prazo_limite || r.periodo_fim)}</Td>
                   <Td><StatusBadge status={r.status} label={STATUS_LABELS[r.status]} /></Td>
                   <Td className="text-xs text-gray-500 max-w-[200px] truncate">{r.justificativa || '—'}</Td>
                   <Td>

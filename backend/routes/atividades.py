@@ -48,15 +48,16 @@ def criar():
     data = request.get_json()
     if data.get('perfil') not in PERFIS_ATIVIDADE:
         return jsonify({'erro': 'Perfil inválido para atividade'}), 400
+    periodicidade = data['periodicidade']
     a = AtividadeCatalogo(
         nome=data['nome'],
         descricao=data.get('descricao'),
-        periodicidade=data['periodicidade'],
+        periodicidade=periodicidade,
         perfil=data['perfil'],
         obrigatoria=data.get('obrigatoria', True),
         tipo_evidencia=data.get('tipo_evidencia'),
         indicador=data.get('indicador'),
-        prazo_padrao=data.get('prazo_padrao', 7),
+        prazo_padrao=data.get('prazo_padrao', 1 if periodicidade == 'diaria' else 7),
         ordem=data.get('ordem', 0),
         ativo=data.get('ativo', True)
     )

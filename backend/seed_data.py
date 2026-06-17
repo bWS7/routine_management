@@ -32,3 +32,6 @@ ATIVIDADES_CATALOGO = [
     {"nome": "Plano de Reativação e Expansão", "descricao": "Plano quinzenal para reativação de parceiros inativos e expansão da carteira.", "periodicidade": "quinzenal", "perfil": "sp", "obrigatoria": False, "tipo_evidencia": "Plano de reativação documentado", "indicador": "Parceiros reativados e novos", "ordem": 4},
     {"nome": "Treinamento e Alinhamento com Parceiros", "descricao": "Sessão mensal de treinamento ou alinhamento estratégico com parceiros da carteira.", "periodicidade": "mensal", "perfil": "sp", "obrigatoria": True, "tipo_evidencia": "Lista de presença ou registro do treinamento", "indicador": "Parceiros treinados", "ordem": 5},
 ]
+
+for atividade in ATIVIDADES_CATALOGO:
+    atividade.setdefault('prazo_padrao', 1 if atividade.get('periodicidade') == 'diaria' else 7)

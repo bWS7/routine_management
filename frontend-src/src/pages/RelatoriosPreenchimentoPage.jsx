@@ -1254,6 +1254,7 @@ export default function RelatoriosPreenchimentoPage() {
 
           <Select value={periodicidade} onChange={e => setPeriodicidade(e.target.value)} label="Periodicidade">
             <option value="">Todas</option>
+            <option value="diaria">Diaria</option>
             <option value="semanal">Semanal</option>
             <option value="quinzenal">Quinzenal</option>
             <option value="mensal">Mensal</option>

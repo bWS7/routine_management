@@ -9,7 +9,7 @@ import { Input, Select, Textarea } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
 import { PeriodoBadge, PerfilBadge } from '../components/ui/Badge';
-import { PERFIL_LABELS, PERIODO_LABELS } from '../utils/constants';
+import { PERFIL_LABELS, PERIODO_LABELS, PERIODICIDADE_OPTIONS } from '../utils/constants';
 
 function AtividadeModal({ atividade, onClose, onSaved }) {
   const { toast } = useToast();
@@ -18,6 +18,7 @@ function AtividadeModal({ atividade, onClose, onSaved }) {
     descricao: atividade?.descricao || '',
     perfil: atividade?.perfil || 'gv',
     periodicidade: atividade?.periodicidade || 'semanal',
+    prazo_padrao: atividade?.prazo_padrao ?? 7,
     obrigatoria: atividade?.obrigatoria !== false,
     ordem: atividade?.ordem || 0,
     tipo_evidencia: atividade?.tipo_evidencia || '',
@@ -26,13 +27,20 @@ function AtividadeModal({ atividade, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const setPeriodicidade = (value) => {
+    setForm(prev => ({
+      ...prev,
+      periodicidade: value,
+      prazo_padrao: value === 'diaria' && Number(prev.prazo_padrao || 0) === 7 ? 1 : prev.prazo_padrao,
+    }));
+  };
 
   const save = async () => {
     if (!form.nome) { toast('Informe o nome', 'error'); return; }
     setSaving(true);
     const method = atividade ? 'PUT' : 'POST';
     const url = atividade ? `/api/atividades/${atividade.id}` : '/api/atividades/';
-    const r = await apiFetch(url, { method, body: JSON.stringify({ ...form, ordem: Number(form.ordem) }) });
+    const r = await apiFetch(url, { method, body: JSON.stringify({ ...form, ordem: Number(form.ordem), prazo_padrao: Number(form.prazo_padrao) }) });
     if (r?.ok) { toast(atividade ? 'Atividade atualizada!' : 'Atividade criada!', 'success'); onSaved(); onClose(); }
     else toast(r?.data?.erro || 'Erro ao salvar', 'error');
     setSaving(false);
@@ -56,16 +64,15 @@ function AtividadeModal({ atividade, onClose, onSaved }) {
           <Select label="Perfil *" value={form.perfil} onChange={e => set('perfil', e.target.value)}>
             {['sr', 'gv', 'cd', 'sp'].map(p => <option key={p} value={p}>{PERFIL_LABELS[p]}</option>)}
           </Select>
-          <Select label="Periodicidade *" value={form.periodicidade} onChange={e => set('periodicidade', e.target.value)}>
-            <option value="semanal">Semanal</option>
-            <option value="quinzenal">Quinzenal</option>
-            <option value="mensal">Mensal</option>
+          <Select label="Periodicidade *" value={form.periodicidade} onChange={e => setPeriodicidade(e.target.value)}>
+            {PERIODICIDADE_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </Select>
           <Select label="Obrigatória" value={form.obrigatoria ? 'true' : 'false'} onChange={e => set('obrigatoria', e.target.value === 'true')}>
             <option value="true">Sim</option>
             <option value="false">Não</option>
           </Select>
           <Input label="Ordem" type="number" value={form.ordem} onChange={e => set('ordem', e.target.value)} />
+          <Input label="Prazo padrao (dias)" type="number" min="1" value={form.prazo_padrao} onChange={e => set('prazo_padrao', e.target.value)} />
         </div>
         <Input label="Tipo de Evidência" value={form.tipo_evidencia} onChange={e => set('tipo_evidencia', e.target.value)}
           placeholder="Ex: Print do painel, Ata de reunião..." />
@@ -108,9 +115,17 @@ export default function AtividadesPage() {
     if (periodoFilter) url += `&periodicidade=${periodoFilter}`;
     const r = await apiFetch(url);
     if (!r?.ok) { toast('Erro ao exportar', 'error'); return; }
-    const rows = r.data.map(a => [a.ordem, a.nome, PERFIL_LABELS[a.perfil] || a.perfil,
-      PERIODO_LABELS[a.periodicidade] || a.periodicidade, a.obrigatoria ? 'Sim' : 'Não', a.tipo_evidencia || '', a.indicador || '']);
-    downloadCsvFromRows('catalogo_atividades.csv', ['Ordem', 'Nome', 'Perfil', 'Periodicidade', 'Obrigatória', 'Tipo Evidência', 'Indicador'], rows);
+    const rows = r.data.map(a => [
+      a.ordem,
+      a.nome,
+      PERFIL_LABELS[a.perfil] || a.perfil,
+      PERIODO_LABELS[a.periodicidade] || a.periodicidade,
+      a.prazo_padrao ?? '',
+      a.obrigatoria ? 'Sim' : 'Nao',
+      a.tipo_evidencia || '',
+      a.indicador || '',
+    ]);
+    downloadCsvFromRows('catalogo_atividades.csv', ['Ordem', 'Nome', 'Perfil', 'Periodicidade', 'Prazo Padrao', 'Obrigatoria', 'Tipo Evidencia', 'Indicador'], rows);
   };
 
   return (
@@ -128,9 +143,7 @@ export default function AtividadesPage() {
         </Select>
         <Select value={periodoFilter} onChange={e => setPeriodoFilter(e.target.value)} className="w-36">
           <option value="">Todas</option>
-          <option value="semanal">Semanal</option>
-          <option value="quinzenal">Quinzenal</option>
-          <option value="mensal">Mensal</option>
+          {PERIODICIDADE_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
         </Select>
         <div className="ml-auto flex gap-2">
           <Button variant="secondary" icon={Download} onClick={exportar}>Exportar CSV</Button>
@@ -150,6 +163,7 @@ export default function AtividadesPage() {
                   <Th>Nome</Th>
                   <Th>Perfil</Th>
                   <Th>Periodicidade</Th>
+                  <Th>Prazo</Th>
                   <Th>Obrigatória</Th>
                   <Th>Evidência</Th>
                   <Th>Ações</Th>
@@ -165,6 +179,7 @@ export default function AtividadesPage() {
                     </Td>
                     <Td><PerfilBadge perfil={a.perfil} label={PERFIL_LABELS[a.perfil] || a.perfil} /></Td>
                     <Td><PeriodoBadge periodo={a.periodicidade} label={PERIODO_LABELS[a.periodicidade]} /></Td>
+                    <Td className="text-xs text-gray-500">{a.prazo_padrao ?? '-'} dia(s)</Td>
                     <Td>
                       {a.obrigatoria
                         ? <Check size={15} className="text-success" />
