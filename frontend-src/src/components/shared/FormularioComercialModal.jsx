@@ -11,6 +11,10 @@ import {
   FormAnaliseRiscos, FormAcompanhamentoLiderados, FormComiteMensal,
   FormCanalParcerias, FormRotinaVisitas, FormCarteiraParceiros,
   FormReativacaoExpansao, FormTreinamentoParceiros,
+  FormChecklistStand, FormReuniaoStand, FormRelatorioGeralEmp,
+  FormAnaliseConcorrencia, FormRelatorioMensalEmp,
+  FormFunilVendas, FormPerformanceCorretores, FormAlinhamentoIndividual,
+  FormTreinamentoTime, FormMonitoramentoRotinas, FormResultadoGeralTime,
 } from './ReportForms';
 
 // ── Legacy constants (for padrao report) ─────────────────────
@@ -351,6 +355,17 @@ export default function FormularioComercialModal({ rotinaId, rotina, currentUser
       {reportType === 'carteira_parceiros' && <FormCarteiraParceiros {...formProps} />}
       {reportType === 'reativacao_expansao' && <FormReativacaoExpansao {...formProps} />}
       {reportType === 'treinamento_parceiros' && <FormTreinamentoParceiros {...formProps} />}
+      {reportType === 'checklist_stand' && <FormChecklistStand {...formProps} />}
+      {reportType === 'reuniao_stand' && <FormReuniaoStand {...formProps} />}
+      {reportType === 'relatorio_geral_emp' && <FormRelatorioGeralEmp {...formProps} />}
+      {reportType === 'analise_concorrencia' && <FormAnaliseConcorrencia {...formProps} />}
+      {reportType === 'relatorio_mensal_emp' && <FormRelatorioMensalEmp {...formProps} />}
+      {reportType === 'funil_vendas' && <FormFunilVendas {...formProps} />}
+      {reportType === 'performance_corretores' && <FormPerformanceCorretores {...formProps} />}
+      {reportType === 'alinhamento_individual' && <FormAlinhamentoIndividual {...formProps} />}
+      {reportType === 'treinamento_time' && <FormTreinamentoTime {...formProps} />}
+      {reportType === 'monitoramento_rotinas' && <FormMonitoramentoRotinas {...formProps} />}
+      {reportType === 'resultado_geral_time' && <FormResultadoGeralTime {...formProps} />}
       {reportType === 'padrao' && (
         <LegacyForm
           form={form} set={set}

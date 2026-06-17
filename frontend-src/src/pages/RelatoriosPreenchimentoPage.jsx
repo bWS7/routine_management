@@ -215,7 +215,7 @@ function RelatorioRow({ rotina, onView }) {
   );
 }
 
-import { getReportType } from '../components/shared/reportConfigs';
+import { getReportType, CHECKLIST_STAND_ITENS } from '../components/shared/reportConfigs';
 
 function RelatorioResumoPreview({ rotina, f }) {
   const type = getReportType(rotina.atividade_nome, rotina.perfil);
@@ -662,6 +662,391 @@ function RelatorioResumoPreview({ rotina, f }) {
             <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{f.proximas_acoes}</p>
           </div>
         )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'checklist_stand') {
+    const emps = f.empreendimentos || [];
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div><strong>Data:</strong> {f.data_execucao || '—'}</div>
+          <div><strong>Responsável:</strong> {f.responsavel || '—'}</div>
+        </div>
+        {emps.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] border border-gray-100 rounded">
+              <thead className="bg-gray-100 text-gray-500">
+                <tr>
+                  <th className="p-1.5 text-left">Item</th>
+                  {emps.map((e, i) => <th key={i} className="p-1.5 text-left">{e.nome || `Emp. ${i + 1}`}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {CHECKLIST_STAND_ITENS.map(it => (
+                  <tr key={it.key} className="border-b border-gray-100 bg-white">
+                    <td className="p-1.5">{it.label}</td>
+                    {emps.map((e, i) => (
+                      <td key={i} className="p-1.5">
+                        <span className={
+                          e.itens?.[it.key] === 'Não' ? 'text-red-600 font-semibold' :
+                          e.itens?.[it.key] === 'Sim' ? 'text-green-600 font-semibold' : 'text-gray-400'
+                        }>{e.itens?.[it.key] || '—'}</span>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {emps.some(e => e.observacoes) && (
+                  <tr className="bg-white">
+                    <td className="p-1.5 text-gray-400 font-medium">Observação</td>
+                    {emps.map((e, i) => <td key={i} className="p-1.5">{e.observacoes || '—'}</td>)}
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-gray-400">Nenhum empreendimento verificado.</p>}
+        {f.nao_conformidades?.length > 0 && (
+          <div>
+            <strong>Não Conformidades:</strong>
+            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+              {f.nao_conformidades.map((n, idx) => n.problema && (
+                <li key={idx}>{n.problema} — <em>{n.criticidade || '—'}</em> · Ação: {n.acao || '—'} (Resp: {n.responsavel || '—'})</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'reuniao_stand') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+          <div><strong>Data:</strong> {f.data || '—'}</div>
+          <div><strong>Início:</strong> {f.hora_inicio || '—'}</div>
+          <div><strong>Término:</strong> {f.hora_termino || '—'}</div>
+          <div><strong>Empreendimento:</strong> {f.empreendimento || '—'}</div>
+        </div>
+        {f.participantes?.length > 0 && (
+          <div><strong>Participantes:</strong> {f.participantes.map(p => p.nome).filter(Boolean).join(', ') || '—'}</div>
+        )}
+        {f.resultados_dia && <div><strong>Resultados do dia/período:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.resultados_dia}</p></div>}
+        {f.pendencias_operacionais && <div><strong>Pendências operacionais:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.pendencias_operacionais}</p></div>}
+        {f.acoes_comerciais && <div><strong>Ações comerciais em andamento:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acoes_comerciais}</p></div>}
+        {f.demandas_marketing && <div><strong>Demandas de marketing:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.demandas_marketing}</p></div>}
+        {f.necessidades_stand && <div><strong>Necessidades do stand:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.necessidades_stand}</p></div>}
+        {f.plano_acao?.length > 0 && (
+          <div>
+            <strong>Plano de Ação:</strong>
+            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+              {f.plano_acao.map((a, idx) => a.acao && (
+                <li key={idx}>{a.acao} — Resp: {a.responsavel || '—'} (Prazo: {a.prazo || '—'}) {a.status ? `· ${a.status}` : ''}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {f.observacoes && <div><strong>Observações Gerais:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.observacoes}</p></div>}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'relatorio_geral_emp') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div><strong>Período Analisado:</strong> {f.periodo_analisado || '—'}</div>
+        {f.resultados?.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] border border-gray-100 rounded">
+              <thead className="bg-gray-100 text-gray-500">
+                <tr>
+                  <th className="p-1.5 text-left">Empreendimento</th>
+                  <th className="p-1.5 text-left">Leads</th>
+                  <th className="p-1.5 text-left">Visitas</th>
+                  <th className="p-1.5 text-left">Pastas</th>
+                  <th className="p-1.5 text-left">Propostas</th>
+                  <th className="p-1.5 text-left">Vendas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {f.resultados.map((r, idx) => r.empreendimento && (
+                  <tr key={idx} className="border-b border-gray-100 bg-white">
+                    <td className="p-1.5 font-medium">{r.empreendimento}</td>
+                    <td className="p-1.5">{r.leads || '0'}</td>
+                    <td className="p-1.5">{r.visitas || '0'}</td>
+                    <td className="p-1.5">{r.pastas || '0'}</td>
+                    <td className="p-1.5">{r.propostas || '0'}</td>
+                    <td className="p-1.5">{r.vendas || '0'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {f.destaques_positivos && <div><strong>Destaques positivos:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.destaques_positivos}</p></div>}
+        {f.principais_dificuldades && <div><strong>Principais dificuldades:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.principais_dificuldades}</p></div>}
+        {f.necessidade_apoio && <div><strong>Necessidade de apoio:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.necessidade_apoio}</p></div>}
+        {f.plano_acao?.length > 0 && (
+          <div>
+            <strong>Plano de Ação:</strong>
+            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+              {f.plano_acao.map((a, idx) => a.acao && (
+                <li key={idx}>{a.acao} — Resp: {a.responsavel || '—'} (Prazo: {a.prazo || '—'})</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'analise_concorrencia') {
+    return (
+      <div className="space-y-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div><strong>Construtora:</strong> {f.construtora || '—'}</div>
+          <div><strong>Empreendimento:</strong> {f.empreendimento || '—'}</div>
+          <div><strong>Cidade/Bairro:</strong> {f.cidade_bairro || '—'}</div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div><strong>Comissão imobiliária:</strong> {f.comissao_imobiliaria || '—'}</div>
+          <div><strong>Premiação imobiliária:</strong> {f.premiacao_imobiliaria || '—'}</div>
+          <div><strong>Premiação corretor:</strong> {f.premiacao_corretor || '—'}</div>
+          <div><strong>Entrada mínima:</strong> {f.entrada_minima || '—'}</div>
+          <div><strong>Subsídio:</strong> {f.subsidio || '—'}</div>
+          <div><strong>Campanhas vigentes:</strong> {f.campanhas_vigentes || '—'}</div>
+        </div>
+        {f.condicoes_comerciais && <div><strong>Condições comerciais:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.condicoes_comerciais}</p></div>}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div><strong>Tipologia:</strong> {f.tipologia || '—'}</div>
+          <div><strong>Metragem:</strong> {f.metragem || '—'}</div>
+          <div><strong>Faixa de preço:</strong> {f.faixa_preco || '—'}</div>
+        </div>
+        {f.diferenciais && <div><strong>Diferenciais:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.diferenciais}</p></div>}
+        {f.acoes_observadas && <div><strong>Ações de marketing observadas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acoes_observadas}</p></div>}
+        {f.midias_utilizadas && <div><strong>Mídias utilizadas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.midias_utilizadas}</p></div>}
+        {f.eventos_promotores && <div><strong>Eventos/promotores:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.eventos_promotores}</p></div>}
+        {f.vantagens_concorrente && <div><strong>Vantagens do concorrente:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.vantagens_concorrente}</p></div>}
+        {f.fragilidades_concorrente && <div><strong>Fragilidades do concorrente:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.fragilidades_concorrente}</p></div>}
+        {f.impacto_empreendimento && <div><strong>Impacto para nosso empreendimento:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.impacto_empreendimento}</p></div>}
+        {f.acoes_recomendadas?.length > 0 && (
+          <div>
+            <strong>Ações Recomendadas:</strong>
+            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+              {f.acoes_recomendadas.map((a, idx) => a.sugestao_acao && (
+                <li key={idx}>{a.sugestao_acao} — Resp: {a.responsavel || '—'}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'relatorio_mensal_emp') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div><strong>Empreendimento:</strong> {f.empreendimento || '—'}</div>
+          <div><strong>Mês de referência:</strong> {f.mes_referencia || '—'}</div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[['Leads', f.leads], ['Visitas', f.visitas], ['Pastas', f.pastas], ['Propostas', f.propostas], ['Vendas', f.vendas]].map(([rotulo, valor]) => (
+            <div key={rotulo} className="bg-white p-2 rounded border border-gray-100">
+              <div className="text-gray-400">{rotulo}</div>
+              <div className="text-sm font-semibold">{valor || '0'}</div>
+            </div>
+          ))}
+        </div>
+        {f.principal_conquista && <div><strong>Principal conquista:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.principal_conquista}</p></div>}
+        {f.principal_dificuldade && <div><strong>Principal dificuldade:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.principal_dificuldade}</p></div>}
+        {f.acoes_realizadas && <div><strong>Ações realizadas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acoes_realizadas}</p></div>}
+        {f.acoes_nao_concluidas && <div><strong>Ações não concluídas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acoes_nao_concluidas}</p></div>}
+        <div><strong>Movimentação relevante da concorrência:</strong> {f.houve_movimentacao || '—'}</div>
+        {f.descricao_concorrencia && <div><strong>Descrição:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.descricao_concorrencia}</p></div>}
+        <div>
+          <strong>Necessidades do Produto:</strong>
+          <ul className="list-disc pl-4 mt-1 space-y-0.5">
+            <li>Marketing: {f.necessidade_marketing || '—'}</li>
+            <li>Comercial: {f.necessidade_comercial || '—'}</li>
+            <li>Estrutura: {f.necessidade_estrutura || '—'}</li>
+            <li>Estoque: {f.necessidade_estoque || '—'}</li>
+            <li>Precificação: {f.necessidade_precificacao || '—'}</li>
+          </ul>
+        </div>
+        {f.plano_acao?.length > 0 && (
+          <div>
+            <strong>Plano de Ação Próximo Mês:</strong>
+            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+              {f.plano_acao.map((a, idx) => a.acao && (
+                <li key={idx}>{a.acao} — Resp: {a.responsavel || '—'} (Prazo: {a.prazo || '—'})</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'funil_vendas') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div><strong>Período analisado:</strong> {f.periodo_analisado || '—'}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[['Leads recebidos', f.leads_recebidos], ['Leads contatados', f.leads_contatados], ['Agendamentos', f.agendamentos], ['Visitas', f.visitas], ['Pastas', f.pastas], ['Propostas', f.propostas], ['Vendas', f.vendas]].map(([rotulo, valor]) => (
+            <div key={rotulo} className="bg-white p-2 rounded border border-gray-100">
+              <div className="text-gray-400">{rotulo}</div>
+              <div className="text-sm font-semibold">{valor || '0'}</div>
+            </div>
+          ))}
+        </div>
+        <div><strong>Principal etapa de perda:</strong> {f.etapa_perda || '—'}</div>
+        {f.motivo_perdas && <div><strong>Motivo predominante das perdas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.motivo_perdas}</p></div>}
+        {f.acao_corretiva && <div><strong>Ação corretiva definida:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acao_corretiva}</p></div>}
+        <div><strong>Responsável pela ação:</strong> {f.responsavel_acao || '—'}</div>
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'performance_corretores') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div><strong>Data da reunião:</strong> {f.data_reuniao || '—'}</div>
+          <div><strong>Próximo acompanhamento:</strong> {f.proximo_acompanhamento || '—'}</div>
+        </div>
+        {f.participantes?.length > 0 && (
+          <div><strong>Participantes:</strong> {f.participantes.map(p => p.nome).filter(Boolean).join(', ') || '—'}</div>
+        )}
+        {f.indicadores_apresentados && <div><strong>Indicadores apresentados:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.indicadores_apresentados}</p></div>}
+        {f.pontos_discutidos && <div><strong>Principais pontos discutidos:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.pontos_discutidos}</p></div>}
+        {f.dificuldades && <div><strong>Dificuldades identificadas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.dificuldades}</p></div>}
+        {f.acoes_definidas && <div><strong>Ações definidas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acoes_definidas}</p></div>}
+        {f.responsaveis_acoes && <div><strong>Responsáveis pelas ações:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.responsaveis_acoes}</p></div>}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'alinhamento_individual') {
+    return (
+      <div className="space-y-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div><strong>Corretor:</strong> {f.corretor || '—'}</div>
+          <div><strong>Meta do período:</strong> {f.meta_periodo || '—'}</div>
+          <div><strong>Resultado atual:</strong> {f.resultado_atual || '—'}</div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white p-2 rounded border border-gray-100"><div className="text-gray-400">Atendimentos</div><div className="text-sm font-semibold">{f.qtd_atendimentos || '0'}</div></div>
+          <div className="bg-white p-2 rounded border border-gray-100"><div className="text-gray-400">Propostas</div><div className="text-sm font-semibold">{f.qtd_propostas || '0'}</div></div>
+          <div className="bg-white p-2 rounded border border-gray-100"><div className="text-gray-400">Vendas</div><div className="text-sm font-semibold">{f.qtd_vendas || '0'}</div></div>
+        </div>
+        {f.dificuldades && <div><strong>Dificuldades identificadas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.dificuldades}</p></div>}
+        <div><strong>Necessidade de apoio:</strong> {f.necessidade_apoio || '—'}{f.necessidade_apoio === 'Sim' && f.tipo_apoio ? ` — ${f.tipo_apoio}` : ''}</div>
+        {f.acao_definida && <div><strong>Ação definida:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acao_definida}</p></div>}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div><strong>Responsável:</strong> {f.responsavel || '—'}</div>
+          <div><strong>Próximo acompanhamento:</strong> {f.proximo_acompanhamento || '—'}</div>
+        </div>
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'treinamento_time') {
+    return (
+      <div className="space-y-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div><strong>Data:</strong> {f.data_treinamento || '—'}</div>
+          <div><strong>Tema:</strong> {f.tema || '—'}</div>
+          <div><strong>Instrutor:</strong> {f.instrutor || '—'}</div>
+        </div>
+        {f.participantes && <div><strong>Participantes:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.participantes}</p></div>}
+        {f.corretores_ausentes && <div><strong>Corretores ausentes:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.corretores_ausentes}</p></div>}
+        <div><strong>Houve avaliação:</strong> {f.houve_avaliacao || '—'}{f.houve_avaliacao === 'Sim' && f.nota_media ? ` — Nota média: ${f.nota_media}` : ''}</div>
+        {f.dificuldades && <div><strong>Dificuldades identificadas:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.dificuldades}</p></div>}
+        <div><strong>Necessidade de reforço:</strong> {f.necessidade_reforco || '—'}</div>
+        <div><strong>Próximo tema sugerido:</strong> {f.proximo_tema || '—'}</div>
+        {f.material_apresentado && <div><strong>Material apresentado:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.material_apresentado}</p></div>}
+        {f.fotos && <div><strong>Fotos:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.fotos}</p></div>}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'monitoramento_rotinas') {
+    return (
+      <div className="space-y-2 text-xs">
+        <div><strong>Período analisado:</strong> {f.periodo_analisado || '—'}</div>
+        <div><strong>Escala cumprida:</strong> {f.escala_cumprida || '—'}</div>
+        {f.escala_cumprida === 'Não' && (
+          <>
+            {f.corretores_ausentes && <div><strong>Corretores ausentes:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.corretores_ausentes}</p></div>}
+            {f.motivo_ausencias && <div><strong>Motivo das ausências:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.motivo_ausencias}</p></div>}
+          </>
+        )}
+        <div><strong>Houve agendas externas:</strong> {f.houve_agendas_externas || '—'}{f.houve_agendas_externas === 'Sim' && f.tipo_agenda ? ` — ${f.tipo_agenda}` : ''}</div>
+        {f.houve_agendas_externas === 'Sim' && f.objetivo_agenda && (
+          <div><strong>Objetivo da agenda:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.objetivo_agenda}</p></div>
+        )}
+        {f.desvios_identificados && <div><strong>Principais desvios identificados:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.desvios_identificados}</p></div>}
+        {f.acao_corretiva && <div><strong>Ação corretiva definida:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acao_corretiva}</p></div>}
+        <div className="text-gray-400 mt-2 text-[10px]">
+          Arquivos de Evidência: {rotina.evidencias?.length || 0}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'resultado_geral_time') {
+    return (
+      <div className="space-y-3 text-xs">
+        <div><strong>Período analisado:</strong> {f.periodo_analisado || '—'}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[['Leads recebidos', f.leads_recebidos], ['Visitas', f.visitas], ['Pastas', f.pastas], ['Propostas', f.propostas], ['Vendas', f.vendas]].map(([rotulo, valor]) => (
+            <div key={rotulo} className="bg-white p-2 rounded border border-gray-100">
+              <div className="text-gray-400">{rotulo}</div>
+              <div className="text-sm font-semibold">{valor || '0'}</div>
+            </div>
+          ))}
+        </div>
+        <div><strong>Corretor destaque:</strong> {f.corretor_destaque || '—'}</div>
+        {f.melhor_resultado && <div><strong>Melhor resultado obtido:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.melhor_resultado}</p></div>}
+        {f.principal_desafio && <div><strong>Principal desafio identificado:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.principal_desafio}</p></div>}
+        {f.acoes_melhoria && <div><strong>Ações para melhoria:</strong> <p className="text-gray-700 whitespace-pre-wrap">{f.acoes_melhoria}</p></div>}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div><strong>Responsáveis:</strong> {f.responsaveis || '—'}</div>
+          <div><strong>Meta próximo período:</strong> {f.meta_proximo || '—'}</div>
+        </div>
         <div className="text-gray-400 mt-2 text-[10px]">
           Arquivos de Evidência: {rotina.evidencias?.length || 0}
         </div>
