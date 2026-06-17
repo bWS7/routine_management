@@ -1,7 +1,8 @@
 /**
  * Mapeamento de atividades do catálogo → tipo de relatório personalizado.
- * As atividades de Superintendente Regional usam relatórios específicos.
- * Cada atividade que não tiver mapeamento aqui usará o relatório padrão.
+ * As atividades de Superintendente Regional e Supervisor de Parceria usam
+ * relatórios específicos. Cada atividade que não tiver mapeamento aqui usará
+ * o relatório padrão.
  */
 
 const SR_REPORTS_BY_ACTIVITY = {
@@ -23,6 +24,18 @@ const SR_REPORTS_BY_ACTIVITY = {
   'comite mensal de resultado': 'comite_mensal',
 };
 
+const SP_REPORTS_BY_ACTIVITY = {
+  'relatorio do canal parcerias': 'canal_parcerias',
+  'rotina de visita a parceiros': 'rotina_visitas',
+  'analise da carteira de parceiros': 'carteira_parceiros',
+  'plano de reativacao e expansao': 'reativacao_expansao',
+  'treinamento e alinhamento com parceiros': 'treinamento_parceiros',
+
+  // Aliases para nomes anteriores das atividades.
+  'rotina de visitas a parceiros': 'rotina_visitas',
+  'mapa de carteira de parceiros': 'carteira_parceiros',
+};
+
 function normalizeActivityName(value) {
   return String(value || '')
     .normalize('NFD')
@@ -33,9 +46,12 @@ function normalizeActivityName(value) {
 
 export function getReportType(atividadeNome, perfil) {
   if (!atividadeNome) return 'padrao';
+  const normalized = normalizeActivityName(atividadeNome);
+
+  if (perfil === 'sp') return SP_REPORTS_BY_ACTIVITY[normalized] || 'padrao';
   if (perfil && perfil !== 'sr') return 'padrao';
 
-  return SR_REPORTS_BY_ACTIVITY[normalizeActivityName(atividadeNome)] || 'padrao';
+  return SR_REPORTS_BY_ACTIVITY[normalized] || 'padrao';
 }
 
 export const REPORT_TITLES = {
@@ -45,6 +61,13 @@ export const REPORT_TITLES = {
   analise_riscos: 'Análise dos Riscos da Regional',
   acompanhamento_liderados: 'Acompanhamento e Desenvolvimento dos Liderados (1:1)',
   comite_mensal: 'Comitê Mensal de Resultados',
+
+  canal_parcerias: 'Relatório do Canal Parcerias',
+  rotina_visitas: 'Rotina de Visita a Parceiros',
+  carteira_parceiros: 'Análise da Carteira de Parceiros',
+  reativacao_expansao: 'Plano de Reativação e Expansão',
+  treinamento_parceiros: 'Treinamento e Alinhamento com Parceiros',
+
   padrao: 'Relatório Padrão Comercial',
 };
 
@@ -55,6 +78,12 @@ export const REPORT_OBJECTIVES = {
   analise_riscos: 'Identificar e tratar riscos que possam impactar os resultados.',
   acompanhamento_liderados: 'Apoiar o crescimento e os resultados dos gestores.',
   comite_mensal: 'Analisar os resultados e planejar o próximo período.',
+
+  canal_parcerias: 'Acompanhar a performance dos parceiros.',
+  rotina_visitas: 'Fortalecer relacionamento e identificar oportunidades.',
+  carteira_parceiros: 'Acompanhar a evolução da carteira de parceiros.',
+  reativacao_expansao: 'Ampliar e recuperar a base de parceiros.',
+  treinamento_parceiros: 'Garantir conhecimento e alinhamento comercial.',
 };
 
 const REQUIRED_FIELDS = {
@@ -110,6 +139,46 @@ const REQUIRED_FIELDS = {
     'plano_acao_proximo_mes',
     'metas_proximo_periodo',
     { list: 'participantes', fields: ['nome', 'cargo'] },
+  ],
+
+  canal_parcerias: [
+    'periodo_referencia',
+    'qtd_parceiros_ativos',
+    'leads_gerados',
+    'visitas_realizadas',
+    'parceiros_melhor_desempenho',
+    'oportunidades_dificuldades',
+  ],
+  rotina_visitas: [
+    {
+      list: 'visitas',
+      fields: ['parceiro', 'data', 'hora_inicio', 'hora_fim', 'tipo_acao', 'temas', 'oportunidades', 'proximos_passos'],
+    },
+  ],
+  carteira_parceiros: [
+    'qtd_parceiros_ativos',
+    'parceiros_maior_resultado',
+    'parceiros_perdidos',
+    'motivo_perda',
+    'parceiros_potencial',
+    'plano_recuperacao',
+  ],
+  reativacao_expansao: [
+    {
+      list: 'acoes',
+      fields: ['tipo_acao', 'parceiro_canal', 'descricao_plano', 'responsavel', 'prazo'],
+    },
+  ],
+  treinamento_parceiros: [
+    'tipo_acao',
+    'parceiro_atendido',
+    'data',
+    'hora_inicio',
+    'hora_fim',
+    'participantes',
+    'pauta',
+    'materiais',
+    'proximas_acoes',
   ],
 };
 
@@ -191,6 +260,57 @@ export function buildEmptyForm(reportType) {
         aprendizados: '',
         plano_acao_proximo_mes: '',
         metas_proximo_periodo: '',
+      };
+
+    case 'canal_parcerias':
+      return {
+        periodo_referencia: '',
+        qtd_parceiros_ativos: '',
+        leads_gerados: '',
+        visitas_realizadas: '',
+        propostas_geradas: '',
+        vendas_realizadas: '',
+        parceiros_melhor_desempenho: '',
+        oportunidades_dificuldades: '',
+      };
+
+    case 'rotina_visitas':
+      return {
+        visitas: [{
+          parceiro: '', data: '', hora_inicio: '', hora_fim: '',
+          tipo_acao: 'Visita', temas: '', oportunidades: '', proximos_passos: '',
+        }],
+      };
+
+    case 'carteira_parceiros':
+      return {
+        qtd_parceiros_ativos: '',
+        parceiros_maior_resultado: '',
+        parceiros_perdidos: '',
+        motivo_perda: '',
+        parceiros_potencial: '',
+        plano_recuperacao: '',
+      };
+
+    case 'reativacao_expansao':
+      return {
+        acoes: [{
+          tipo_acao: 'Reativação', parceiro_canal: '', descricao_plano: '',
+          responsavel: '', prazo: '',
+        }],
+      };
+
+    case 'treinamento_parceiros':
+      return {
+        tipo_acao: 'Treinamento',
+        parceiro_atendido: '',
+        data: new Date().toISOString().split('T')[0],
+        hora_inicio: '',
+        hora_fim: '',
+        participantes: '',
+        pauta: '',
+        materiais: '',
+        proximas_acoes: '',
       };
 
     default:

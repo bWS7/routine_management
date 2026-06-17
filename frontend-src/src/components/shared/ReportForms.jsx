@@ -1,7 +1,10 @@
 import { Plus, Trash2 } from 'lucide-react';
-import { Input, Textarea } from '../ui/Input';
+import { Input, Textarea, Select } from '../ui/Input';
 
 const PRIORIDADES = ['Alta', 'Média', 'Baixa'];
+const TIPOS_VISITA = ['Visita', 'Reunião', 'Café', 'Evento', 'Outro'];
+const TIPOS_REATIVACAO = ['Reativação', 'Expansão'];
+const TIPOS_TREINAMENTO = ['Treinamento', 'Alinhamento'];
 
 function SectionTitle({ number, title }) {
   return (
@@ -309,6 +312,186 @@ export function FormComiteMensal({ form, set, setList, addItem, removeItem, read
           <Textarea label="Metas do próximo período" value={form.metas_proximo_periodo}
             onChange={e => set('metas_proximo_periodo', e.target.value)} rows={4} disabled={readOnly} required />
         </div>
+      </Section>
+    </div>
+  );
+}
+
+// ─── 7. Relatório do Canal Parcerias (SP) ──────────────────────
+export function FormCanalParcerias({ form, set, readOnly }) {
+  return (
+    <div className="space-y-5">
+      <Section>
+        <SectionTitle number="1" title="Período" />
+        <Input label="Período de referência" value={form.periodo_referencia}
+          onChange={e => set('periodo_referencia', e.target.value)} disabled={readOnly}
+          placeholder="Ex: 09/06 a 13/06/2026" required />
+      </Section>
+
+      <Section>
+        <SectionTitle number="2" title="Indicadores do Canal" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <Input label="Parceiros ativos" type="number" value={form.qtd_parceiros_ativos}
+            onChange={e => set('qtd_parceiros_ativos', e.target.value)} disabled={readOnly} required />
+          <Input label="Leads gerados" type="number" value={form.leads_gerados}
+            onChange={e => set('leads_gerados', e.target.value)} disabled={readOnly} required />
+          <Input label="Visitas realizadas" type="number" value={form.visitas_realizadas}
+            onChange={e => set('visitas_realizadas', e.target.value)} disabled={readOnly} required />
+          <Input label="Propostas geradas" type="number" value={form.propostas_geradas}
+            onChange={e => set('propostas_geradas', e.target.value)} disabled={readOnly}
+            placeholder="Opcional" />
+          <Input label="Vendas realizadas" type="number" value={form.vendas_realizadas}
+            onChange={e => set('vendas_realizadas', e.target.value)} disabled={readOnly}
+            placeholder="Opcional" />
+        </div>
+      </Section>
+
+      <Section>
+        <SectionTitle number="3" title="Análise" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <Textarea label="Parceiros com melhor desempenho" value={form.parceiros_melhor_desempenho}
+            onChange={e => set('parceiros_melhor_desempenho', e.target.value)} rows={4} disabled={readOnly} required />
+          <Textarea label="Principais oportunidades ou dificuldades identificadas" value={form.oportunidades_dificuldades}
+            onChange={e => set('oportunidades_dificuldades', e.target.value)} rows={4} disabled={readOnly} required />
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+// ─── 8. Rotina de Visita a Parceiros (SP) ──────────────────────
+export function FormRotinaVisitas({ form, setList, addItem, removeItem, readOnly }) {
+  return (
+    <div className="space-y-5">
+      <Section>
+        <SectionTitle number="1" title="Visitas Realizadas" />
+        <DynamicTable
+          columns={[
+            { key: 'parceiro', label: 'Nome do parceiro' },
+            { key: 'data', label: 'Data', type: 'date' },
+            { key: 'hora_inicio', label: 'Hora início', type: 'time' },
+            { key: 'hora_fim', label: 'Hora fim', type: 'time' },
+            { key: 'tipo_acao', label: 'Tipo da ação', type: 'select', options: TIPOS_VISITA },
+            { key: 'temas', label: 'Temas abordados' },
+            { key: 'oportunidades', label: 'Oportunidades identificadas' },
+            { key: 'proximos_passos', label: 'Próximos passos definidos' },
+          ]}
+          rows={form.visitas || []} readOnly={readOnly}
+          onChange={(i, k, v) => setList('visitas', i, k, v)}
+          onAdd={() => addItem('visitas', {
+            parceiro: '', data: '', hora_inicio: '', hora_fim: '',
+            tipo_acao: 'Visita', temas: '', oportunidades: '', proximos_passos: '',
+          })}
+          onRemove={(i) => removeItem('visitas', i)}
+          addLabel="Adicionar visita"
+        />
+      </Section>
+    </div>
+  );
+}
+
+// ─── 9. Análise da Carteira de Parceiros (SP) ──────────────────
+export function FormCarteiraParceiros({ form, set, readOnly }) {
+  return (
+    <div className="space-y-5">
+      <Section>
+        <SectionTitle number="1" title="Carteira Ativa" />
+        <Input label="Quantidade de parceiros ativos" type="number" value={form.qtd_parceiros_ativos}
+          onChange={e => set('qtd_parceiros_ativos', e.target.value)} disabled={readOnly} required />
+      </Section>
+
+      <Section>
+        <SectionTitle number="2" title="Evolução da Carteira" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <Textarea label="Parceiros com maior geração de resultados" value={form.parceiros_maior_resultado}
+            onChange={e => set('parceiros_maior_resultado', e.target.value)} rows={3} disabled={readOnly} required />
+          <Textarea label="Parceiros perdidos no período" value={form.parceiros_perdidos}
+            onChange={e => set('parceiros_perdidos', e.target.value)} rows={3} disabled={readOnly} required />
+          <Textarea label="Motivo da perda" value={form.motivo_perda}
+            onChange={e => set('motivo_perda', e.target.value)} rows={3} disabled={readOnly} required />
+          <Textarea label="Parceiros em potencial para desenvolvimento" value={form.parceiros_potencial}
+            onChange={e => set('parceiros_potencial', e.target.value)} rows={3} disabled={readOnly} required />
+        </div>
+      </Section>
+
+      <Section>
+        <SectionTitle number="3" title="Plano de Ação" />
+        <Textarea label="Plano de ação para recuperação ou fortalecimento" value={form.plano_recuperacao}
+          onChange={e => set('plano_recuperacao', e.target.value)} rows={4} disabled={readOnly} required />
+      </Section>
+    </div>
+  );
+}
+
+// ─── 10. Plano de Reativação e Expansão (SP) ───────────────────
+export function FormReativacaoExpansao({ form, setList, addItem, removeItem, readOnly }) {
+  return (
+    <div className="space-y-5">
+      <Section>
+        <SectionTitle number="1" title="Ações de Reativação e Expansão" />
+        <DynamicTable
+          columns={[
+            { key: 'tipo_acao', label: 'Tipo da ação', type: 'select', options: TIPOS_REATIVACAO },
+            { key: 'parceiro_canal', label: 'Parceiro ou canal envolvido' },
+            { key: 'descricao_plano', label: 'Descrição do plano em execução' },
+            { key: 'responsavel', label: 'Responsável' },
+            { key: 'prazo', label: 'Prazo para conclusão', type: 'date' },
+          ]}
+          rows={form.acoes || []} readOnly={readOnly}
+          onChange={(i, k, v) => setList('acoes', i, k, v)}
+          onAdd={() => addItem('acoes', {
+            tipo_acao: 'Reativação', parceiro_canal: '', descricao_plano: '',
+            responsavel: '', prazo: '',
+          })}
+          onRemove={(i) => removeItem('acoes', i)}
+          addLabel="Adicionar ação"
+        />
+      </Section>
+    </div>
+  );
+}
+
+// ─── 11. Treinamento e Alinhamento com Parceiros (SP) ──────────
+export function FormTreinamentoParceiros({ form, set, readOnly }) {
+  return (
+    <div className="space-y-5">
+      <Section>
+        <SectionTitle number="1" title="Dados da Sessão" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Select label="Tipo da ação" value={form.tipo_acao}
+            onChange={e => set('tipo_acao', e.target.value)} disabled={readOnly} required>
+            {TIPOS_TREINAMENTO.map(t => <option key={t} value={t}>{t}</option>)}
+          </Select>
+          <Input label="Parceiro atendido" value={form.parceiro_atendido}
+            onChange={e => set('parceiro_atendido', e.target.value)} disabled={readOnly} required />
+          <Input type="date" label="Data" value={form.data}
+            onChange={e => set('data', e.target.value)} disabled={readOnly} required />
+          <div className="grid grid-cols-2 gap-3">
+            <Input type="time" label="Horário início" value={form.hora_inicio}
+              onChange={e => set('hora_inicio', e.target.value)} disabled={readOnly} required />
+            <Input type="time" label="Horário fim" value={form.hora_fim}
+              onChange={e => set('hora_fim', e.target.value)} disabled={readOnly} required />
+          </div>
+        </div>
+      </Section>
+
+      <Section>
+        <SectionTitle number="2" title="Conteúdo" />
+        <Textarea label="Participantes" value={form.participantes}
+          onChange={e => set('participantes', e.target.value)} rows={2} disabled={readOnly}
+          placeholder="Liste os participantes da sessão..." required />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <Textarea label="Pauta abordada" value={form.pauta}
+            onChange={e => set('pauta', e.target.value)} rows={3} disabled={readOnly} required />
+          <Textarea label="Materiais apresentados" value={form.materiais}
+            onChange={e => set('materiais', e.target.value)} rows={3} disabled={readOnly} required />
+        </div>
+      </Section>
+
+      <Section>
+        <SectionTitle number="3" title="Próximas Ações" />
+        <Textarea label="Próximas ações acordadas" value={form.proximas_acoes}
+          onChange={e => set('proximas_acoes', e.target.value)} rows={3} disabled={readOnly} required />
       </Section>
     </div>
   );

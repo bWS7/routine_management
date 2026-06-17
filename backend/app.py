@@ -221,6 +221,56 @@ def _sync_atividades_superintendentes():
         print("[sync] Catalogo de superintendentes alinhado aos 6 relatorios personalizados.")
 
 
+def _sync_atividades_parcerias():
+    """Mantem o catalogo de SP alinhado aos cinco relatorios personalizados."""
+    from backend.seed_data import ATIVIDADES_CATALOGO
+    from backend.models import AtividadeCatalogo
+
+    aliases = {
+        'Rotina de Visita a Parceiros': ['Rotina de Visitas a Parceiros'],
+        'Análise da Carteira de Parceiros': ['Mapa de Carteira de Parceiros'],
+    }
+    sp_seeds = [seed for seed in ATIVIDADES_CATALOGO if seed.get('perfil') == 'sp']
+    nomes_finais = {seed['nome'] for seed in sp_seeds}
+    alteradas = 0
+
+    for seed in sp_seeds:
+        nomes_busca = [seed['nome'], *aliases.get(seed['nome'], [])]
+        atividade = (
+            AtividadeCatalogo.query
+            .filter(AtividadeCatalogo.perfil == 'sp', AtividadeCatalogo.nome.in_(nomes_busca))
+            .order_by(AtividadeCatalogo.ativo.desc(), AtividadeCatalogo.id.asc())
+            .first()
+        )
+
+        if not atividade:
+            atividade = AtividadeCatalogo()
+            db.session.add(atividade)
+            alteradas += 1
+
+        for campo in ['nome', 'descricao', 'periodicidade', 'perfil', 'obrigatoria', 'tipo_evidencia', 'indicador', 'ordem']:
+            valor = seed.get(campo)
+            if getattr(atividade, campo, None) != valor:
+                setattr(atividade, campo, valor)
+                alteradas += 1
+        if not atividade.ativo:
+            atividade.ativo = True
+            alteradas += 1
+
+    extras = AtividadeCatalogo.query.filter(
+        AtividadeCatalogo.perfil == 'sp',
+        ~AtividadeCatalogo.nome.in_(nomes_finais)
+    ).all()
+    for atividade in extras:
+        if atividade.ativo:
+            atividade.ativo = False
+            alteradas += 1
+
+    if alteradas:
+        db.session.commit()
+        print("[sync] Catalogo de parcerias alinhado aos 5 relatorios personalizados.")
+
+
 def _ensure_runtime_columns():
     insp = inspect(db.engine)
     tabelas = set(insp.get_table_names())
@@ -260,6 +310,7 @@ def _ensure_runtime_columns():
     # Atualiza descrições do catálogo a partir do seed_data
     _sync_descricoes_catalogo()
     _sync_atividades_superintendentes()
+    _sync_atividades_parcerias()
 
     # Catálogo de atividades
 

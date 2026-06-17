@@ -9,6 +9,8 @@ import { getReportType, REPORT_TITLES, REPORT_OBJECTIVES, buildEmptyForm, valida
 import {
   FormReuniaoPerformance, FormResultadoSemanal, FormDecoesCanal,
   FormAnaliseRiscos, FormAcompanhamentoLiderados, FormComiteMensal,
+  FormCanalParcerias, FormRotinaVisitas, FormCarteiraParceiros,
+  FormReativacaoExpansao, FormTreinamentoParceiros,
 } from './ReportForms';
 
 // ── Legacy constants (for padrao report) ─────────────────────
@@ -344,6 +346,11 @@ export default function FormularioComercialModal({ rotinaId, rotina, currentUser
       {reportType === 'analise_riscos' && <FormAnaliseRiscos {...formProps} />}
       {reportType === 'acompanhamento_liderados' && <FormAcompanhamentoLiderados {...formProps} />}
       {reportType === 'comite_mensal' && <FormComiteMensal {...formProps} />}
+      {reportType === 'canal_parcerias' && <FormCanalParcerias {...formProps} />}
+      {reportType === 'rotina_visitas' && <FormRotinaVisitas {...formProps} />}
+      {reportType === 'carteira_parceiros' && <FormCarteiraParceiros {...formProps} />}
+      {reportType === 'reativacao_expansao' && <FormReativacaoExpansao {...formProps} />}
+      {reportType === 'treinamento_parceiros' && <FormTreinamentoParceiros {...formProps} />}
       {reportType === 'padrao' && (
         <LegacyForm
           form={form} set={set}
