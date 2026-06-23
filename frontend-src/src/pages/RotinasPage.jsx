@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText, Info } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText, Info, UploadCloud } from 'lucide-react';
 import FormularioComercialModal from '../components/shared/FormularioComercialModal';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -94,18 +94,33 @@ function RotinaCard({ rotina, onClick }) {
 // ─── Rotina Modal ─────────────────────────────────────────────
 function EvidenciasList({ evidencias, rotinaId, canEdit, onReload }) {
   const { toast } = useToast();
-  const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const inputRef = useRef(null);
 
-  const upload = async () => {
-    if (!file) { toast('Selecione um arquivo', 'error'); return; }
+  // Upload imediato ao selecionar ou soltar arquivos (sem botão extra).
+  const uploadFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
     setUploading(true);
-    const form = new FormData();
-    form.append('arquivo', file);
-    const r = await apiFetch(`/api/rotinas/${rotinaId}/evidencias`, { method: 'POST', body: form });
-    if (r?.ok) { toast('Evidência anexada!', 'success'); onReload(); }
-    else toast(r?.data?.erro || 'Erro ao anexar', 'error');
+    let ok = 0;
+    for (const f of files) {
+      const form = new FormData();
+      form.append('arquivo', f);
+      const r = await apiFetch(`/api/rotinas/${rotinaId}/evidencias`, { method: 'POST', body: form });
+      if (r?.ok) ok += 1;
+      else toast(r?.data?.erro || `Erro ao anexar ${f.name}`, 'error');
+    }
+    if (ok > 0) { toast(ok > 1 ? `${ok} evidências anexadas!` : 'Evidência anexada!', 'success'); onReload(); }
     setUploading(false);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (!canEdit || uploading) return;
+    uploadFiles(e.dataTransfer.files);
   };
 
   const remove = async (eid) => {
@@ -138,15 +153,35 @@ function EvidenciasList({ evidencias, rotinaId, canEdit, onReload }) {
         <p className="text-sm text-gray-400 mb-3">Nenhuma evidência anexada.</p>
       )}
       {canEdit && (
-        <div className="flex items-center gap-2">
-          <input
-            type="file"
-            onChange={e => setFile(e.target.files?.[0] || null)}
-            className="flex-1 text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0
-                       file:text-xs file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-          />
-          <Button variant="secondary" icon={Paperclip} loading={uploading} onClick={upload}>Anexar</Button>
-        </div>
+        <>
+          <input ref={inputRef} type="file" multiple className="hidden" onChange={e => uploadFiles(e.target.files)} />
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => !uploading && inputRef.current?.click()}
+            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !uploading) inputRef.current?.click(); }}
+            onDragOver={e => { e.preventDefault(); if (!uploading) setDragActive(true); }}
+            onDragLeave={e => { e.preventDefault(); setDragActive(false); }}
+            onDrop={onDrop}
+            className={`flex flex-col items-center justify-center gap-1.5 px-4 py-5 rounded-xl border-2 border-dashed
+              cursor-pointer transition-colors text-center
+              ${dragActive ? 'border-primary-400 bg-primary-50' : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'}
+              ${uploading ? 'opacity-60 pointer-events-none' : ''}`}
+          >
+            {uploading ? (
+              <>
+                <div className="h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-gray-500">Enviando...</span>
+              </>
+            ) : (
+              <>
+                <UploadCloud size={22} className="text-primary-500" />
+                <span className="text-sm text-gray-600 font-medium">Arraste arquivos aqui ou clique para anexar</span>
+                <span className="text-[11px] text-gray-400">Salva automaticamente ao selecionar — pode escolher vários</span>
+              </>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -230,11 +265,15 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   if (!rotinaId) return null;
 
   const isOverdue = !!rotina?.pendente_prazo;
+  // Apenas o admin e o próprio dono podem preencher/editar. O Superintendente
+  // pode visualizar e aprovar, mas nunca preencher o relatório de terceiros.
   const canEdit = currentUser?.perfil === 'admin' ||
-                  rotina?.usuario_id === currentUser?.id ||
-                  currentUser?.perfil === 'sr';
+                  rotina?.usuario_id === currentUser?.id;
   const canFill = canEdit && !isOverdue;
   const canRegisterOverdue = canEdit && isOverdue;
+  // O status não bloqueia o relatório: "Não Iniciada"/"Não Realizada" continuam
+  // com o relatório editável mesmo vencidas.
+  const canFillReport = canEdit && (!isOverdue || ['nao_iniciada', 'nao_realizada'].includes(status));
 
   const canReenviar = rotina?.status_aprovacao === 'reprovada' &&
                       (rotina?.usuario_id === currentUser?.id || currentUser?.perfil === 'admin');
@@ -247,16 +286,19 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
     setSaving(false);
   };
 
-  const showJustificativa = status === 'nao_realizada' || status === 'em_andamento';
-  const showAcao = status === 'nao_realizada';
+  const planoObrigatorio = status === 'nao_realizada';
 
   const save = async () => {
     if (isOverdue && status !== 'nao_realizada') {
-      toast('Atividade vencida. Registre como nao realizada com justificativa e plano de acao.', 'error');
+      toast('Atividade vencida. Registre como Não Realizada e preencha o Plano da Semana.', 'error');
       return;
     }
-    if (status === 'nao_realizada' && (!justificativa || !acaoCorretiva)) {
-      toast('Preencha a justificativa e o plano de ação', 'error');
+    if (!comentario || !comentario.trim()) {
+      toast('O comentário é obrigatório.', 'error');
+      return;
+    }
+    if (planoObrigatorio && !planoSemana.trim()) {
+      toast('O Plano da Semana é obrigatório quando a atividade não foi realizada.', 'error');
       return;
     }
     if (status === 'concluida' && (!rotina?.evidencias || rotina.evidencias.length === 0)) {
@@ -301,7 +343,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
               variant={rotina?.formulario_preenchido ? 'secondary' : 'primary'}
               icon={FileText}
               onClick={() => setShowFormulario(true)}
-              disabled={!canFill && !rotina?.formulario_preenchido}
+              disabled={!canFillReport && !rotina?.formulario_preenchido}
             >
               {rotina?.formulario_preenchido ? 'Ver Relatório' : 'Preencher Relatório'}
             </Button>
@@ -321,7 +363,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
           {isOverdue && (
             <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl text-sm text-red-700 border border-red-200">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-              <span>Atividade vencida. O preenchimento foi bloqueado; registre como nao realizada com justificativa e plano de acao.</span>
+              <span>Atividade vencida. Registre como Não Realizada e preencha o Plano da Semana. O relatório continua disponível para preenchimento.</span>
             </div>
           )}
           {/* Formulário obrigatório alert */}
@@ -415,55 +457,11 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
           </Select>
 
           <Textarea label="Comentário" value={comentario} onChange={e => setComentario(e.target.value)}
-            rows={2} placeholder="Observações sobre a execução..." disabled={!canFill} required />
+            rows={2} placeholder="Observações sobre a execução..." disabled={!(canFill || canRegisterOverdue)} required />
 
-          {/* Plano da semana (sr, gv, cd) */}
-          {['sr', 'gv', 'cd'].includes(rotina.perfil) && (
-            <Textarea label="Plano da Semana" value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
-              rows={2} placeholder="Registre o plano da semana..." disabled={!canFill} />
-          )}
-
-          {/* CD fields */}
-          {rotina.perfil === 'cd' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Textarea label="Checklist" value={checklist} onChange={e => setChecklist(e.target.value)}
-                rows={3} placeholder="Checklist operacional..." disabled={!canFill} />
-              <Textarea label="Relatório" value={relatorio} onChange={e => setRelatorio(e.target.value)}
-                rows={3} placeholder="Resumo do relatório..." disabled={!canFill} />
-            </div>
-          )}
-
-          {/* SP fields */}
-          {rotina.perfil === 'sp' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Textarea label="Visitas / Ativações" value={visitas} onChange={e => setVisitas(e.target.value)}
-                rows={3} disabled={!canFill} />
-              <Textarea label="Resultados por Visita" value={resultados} onChange={e => setResultados(e.target.value)}
-                rows={3} disabled={!canFill} />
-              <Textarea label="Carteira Ativa" value={carteira} onChange={e => setCarteira(e.target.value)}
-                rows={3} disabled={!canFill} />
-              <Textarea label="Metas do Canal" value={metas} onChange={e => setMetas(e.target.value)}
-                rows={3} disabled={!canFill} />
-            </div>
-          )}
-
-          {/* Justificativa */}
-          {showJustificativa && (
-            <Textarea label="Justificativa" value={justificativa} onChange={e => setJustificativa(e.target.value)}
-              rows={2} placeholder="Por que não foi realizada?" disabled={!(canFill || canRegisterOverdue)} required />
-          )}
-
-          {/* Ação corretiva */}
-          {showAcao && (
-            <>
-              <Textarea label="Ação Corretiva" value={acaoCorretiva} onChange={e => setAcaoCorretiva(e.target.value)}
-                rows={2} placeholder="O que será feito para corrigir?" disabled={!(canFill || canRegisterOverdue)} required />
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="Responsável pela ação" value={responsavel} onChange={e => setResponsavel(e.target.value)} disabled={!(canFill || canRegisterOverdue)} required />
-                <Input type="date" label="Novo prazo" value={novoPrazo} onChange={e => setNovoPrazo(e.target.value)} disabled={!(canFill || canRegisterOverdue)} required />
-              </div>
-            </>
-          )}
+          <Textarea label="Plano da Semana" value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
+            rows={3} placeholder={planoObrigatorio ? 'Obrigatório: descreva o plano de ação para a atividade não realizada...' : 'Registre o plano da semana...'}
+            disabled={!(canFill || canRegisterOverdue)} required={planoObrigatorio} />
 
           {/* Divider */}
           <div className="border-t border-gray-100 pt-4">
@@ -505,7 +503,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
         rotinaId={rotinaId}
         rotina={rotina}
         currentUser={currentUser}
-        readOnly={!canFill}
+        readOnly={!canFillReport}
         onClose={() => setShowFormulario(false)}
         onSaved={() => loadRotina(true)}
       />
