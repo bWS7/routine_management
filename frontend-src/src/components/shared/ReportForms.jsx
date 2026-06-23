@@ -191,17 +191,15 @@ export function FormResultadoSemanal({ form, set, readOnly }) {
     <div className="space-y-5">
       <Section>
         <SectionTitle number="1" title="Período" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input label="Período de referência" value={form.periodo_referencia}
-            onChange={e => set('periodo_referencia', e.target.value)} disabled={readOnly}
-            placeholder="Ex: 09/06 a 13/06/2026" required />
-          <EmpreendimentoSelect value={form.empreendimento}
-            onChange={v => set('empreendimento', v)} disabled={readOnly} required />
-        </div>
+        <Input label="Período de referência" value={form.periodo_referencia}
+          onChange={e => set('periodo_referencia', e.target.value)} disabled={readOnly}
+          placeholder="Ex: 09/06 a 13/06/2026" required />
       </Section>
 
       <Section>
         <SectionTitle number="2" title="Indicadores da Semana" />
+        <EmpreendimentoSelect value={form.empreendimento}
+          onChange={v => set('empreendimento', v)} disabled={readOnly} required />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Input label="Quantidade de Leads" type="number" value={form.qtd_leads} onChange={e => set('qtd_leads', e.target.value)} disabled={readOnly} required />
           <Input label="Quantidade de Visitas" type="number" value={form.qtd_visitas} onChange={e => set('qtd_visitas', e.target.value)} disabled={readOnly} required />
