@@ -152,10 +152,10 @@ class Rotina(db.Model):
 
     @property
     def prazo_limite(self):
-        if not self.periodo_inicio:
-            return None
-        dias = self.atividade.prazo_padrao if self.atividade and self.atividade.prazo_padrao else 1
-        return self.periodo_inicio + timedelta(days=max(int(dias), 1) - 1)
+        # O prazo da rotina é o fim do seu período (dia/semana/quinzena/mês).
+        # A atividade só é considerada vencida APÓS o término do período — uma
+        # rotina mensal (ex.: 01/06 a 30/06) não vence no meio do mês.
+        return self.periodo_fim or self.periodo_inicio
 
     def to_dict(self):
         prazo_limite = self.prazo_limite
