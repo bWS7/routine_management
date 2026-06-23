@@ -73,7 +73,14 @@ def create_app():
     @app.route('/auditoria')
     @app.route('/aprovacoes')
     def frontend():
-        return send_from_directory('../frontend', 'index.html')
+        # O index.html nunca deve ser cacheado pelo navegador: ele referencia os
+        # bundles JS/CSS com hash no nome (esses sim cacheáveis para sempre).
+        # Assim, todo novo deploy é carregado automaticamente, sem limpar cache.
+        resp = send_from_directory('../frontend', 'index.html')
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
 
     @app.route('/imagens/<path:filename>')
     def imagens(filename):
