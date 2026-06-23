@@ -189,9 +189,10 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
   useEffect(() => { loadRotina(); }, [loadRotina]);
 
   const isOverdue = !!rotina?.pendente_prazo;
+  // Apenas o admin e o próprio dono podem preencher/editar. O Superintendente
+  // pode visualizar e aprovar, mas nunca preencher o relatório de terceiros.
   const canEdit = currentUser?.perfil === 'admin' ||
-                  rotina?.usuario_id === currentUser?.id ||
-                  currentUser?.perfil === 'sr';
+                  rotina?.usuario_id === currentUser?.id;
   const canFill = canEdit && !isOverdue;
   const canRegisterOverdue = canEdit && isOverdue;
   // Seção 1: o status não deve impedir o preenchimento do relatório. Atividades

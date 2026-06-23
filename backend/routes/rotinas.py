@@ -31,6 +31,13 @@ def can_access_rotina(me, rotina):
     return rotina.usuario_id == me.id
 
 
+def can_edit_rotina(me, rotina):
+    """Permissao de ESCRITA (preencher relatorio, alterar status, anexos).
+    Apenas o admin e o proprio dono da rotina podem editar. O Superintendente
+    pode visualizar/aprovar, mas NUNCA preencher o relatorio de terceiros."""
+    return me.perfil == 'admin' or rotina.usuario_id == me.id
+
+
 def add_rotina_history(rotina, usuario_id, acao, observacao=None, status_anterior=None, status_novo=None):
     hist = HistoricoRotina(
         rotina_id=rotina.id,
@@ -244,7 +251,7 @@ def atualizar(rid):
     me = get_current_user()
     r = Rotina.query.get_or_404(rid)
 
-    if not can_access_rotina(me, r):
+    if not can_edit_rotina(me, r):
         return jsonify({'erro': 'Acesso negado'}), 403
 
     data = request.get_json()
@@ -346,7 +353,7 @@ def atualizar(rid):
 def upload_evidencia(rid):
     me = get_current_user()
     rotina = Rotina.query.get_or_404(rid)
-    if not can_access_rotina(me, rotina):
+    if not can_edit_rotina(me, rotina):
         return jsonify({'erro': 'Acesso negado'}), 403
     if rotina_vencida_pendente(rotina):
         return jsonify({'erro': 'Atividade vencida. Nao e possivel anexar evidencias apos o prazo.'}), 400
@@ -390,7 +397,7 @@ def deletar_evidencia(eid):
     me = get_current_user()
     evidencia = Evidencia.query.get_or_404(eid)
     rotina = Rotina.query.get_or_404(evidencia.rotina_id)
-    if not can_access_rotina(me, rotina):
+    if not can_edit_rotina(me, rotina):
         return jsonify({'erro': 'Acesso negado'}), 403
 
     if evidencia.url and evidencia.url.startswith('/uploads/'):
@@ -929,7 +936,7 @@ def obter_formulario(rid):
 def salvar_formulario(rid):
     me = get_current_user()
     r = Rotina.query.get_or_404(rid)
-    if not can_access_rotina(me, r):
+    if not can_edit_rotina(me, r):
         return jsonify({'erro': 'Acesso negado'}), 403
     # Secao 1: o status nao deve impedir o preenchimento do relatorio.
     # Atividades com status 'nao_iniciada' ou 'nao_realizada' permanecem editaveis
