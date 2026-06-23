@@ -90,6 +90,10 @@ export function emptyChecklistEmpreendimento() {
 
 // ── Blocos repetíveis (vários registros numa mesma atividade) ──
 
+export function emptyIndicadorSemanal() {
+  return { empreendimento: '', leads: '', visitas: '', pastas: '', propostas: '', vendas: '' };
+}
+
 export function emptyCorretorAlinhamento() {
   return {
     corretor: '', meta_periodo: '', resultado_atual: '',
@@ -139,6 +143,30 @@ const REUNIAO_STAND_BLOCO_CAMPOS = [
  */
 export function normalizeLoadedForm(reportType, dados) {
   if (!dados || typeof dados !== 'object') return dados;
+
+  if (reportType === 'resultado_semanal') {
+    if (!Array.isArray(dados.indicadores)) {
+      const legado = hasValue(dados.empreendimento) ||
+        ['qtd_leads', 'qtd_visitas', 'qtd_pastas', 'qtd_propostas', 'qtd_vendas'].some(c => hasValue(dados[c]));
+      const linha = legado
+        ? {
+            empreendimento: dados.empreendimento || '',
+            leads: dados.qtd_leads || '',
+            visitas: dados.qtd_visitas || '',
+            pastas: dados.qtd_pastas || '',
+            propostas: dados.qtd_propostas || '',
+            vendas: dados.qtd_vendas || '',
+          }
+        : emptyIndicadorSemanal();
+      return {
+        periodo_referencia: dados.periodo_referencia || '',
+        indicadores: [linha],
+        destaques_positivos: dados.destaques_positivos || '',
+      };
+    }
+    if (dados.indicadores.length === 0) dados.indicadores = [emptyIndicadorSemanal()];
+    return dados;
+  }
 
   if (reportType === 'alinhamento_individual') {
     if (!Array.isArray(dados.corretores)) {
@@ -271,12 +299,7 @@ const REQUIRED_FIELDS = {
   ],
   resultado_semanal: [
     'periodo_referencia',
-    'empreendimento',
-    'qtd_leads',
-    'qtd_visitas',
-    'qtd_pastas',
-    'qtd_propostas',
-    'qtd_vendas',
+    { list: 'indicadores', fields: ['empreendimento', 'leads', 'visitas', 'pastas', 'propostas', 'vendas'] },
     'destaques_positivos',
   ],
   decisoes_canal: [
@@ -526,12 +549,7 @@ export function buildEmptyForm(reportType) {
     case 'resultado_semanal':
       return {
         periodo_referencia: '',
-        empreendimento: '',
-        qtd_leads: '',
-        qtd_visitas: '',
-        qtd_pastas: '',
-        qtd_propostas: '',
-        qtd_vendas: '',
+        indicadores: [emptyIndicadorSemanal()],
         destaques_positivos: '',
       };
 

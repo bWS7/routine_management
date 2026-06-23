@@ -1,7 +1,8 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Textarea, Select } from '../ui/Input';
 import { CHECKLIST_STAND_ITENS, emptyChecklistEmpreendimento,
-  emptyCorretorAlinhamento, emptyTreinamentoParceiro, emptyReuniaoStandBloco } from './reportConfigs';
+  emptyCorretorAlinhamento, emptyTreinamentoParceiro, emptyReuniaoStandBloco,
+  emptyIndicadorSemanal } from './reportConfigs';
 import EmpreendimentoSelect, { EmpreendimentosDatalist } from './EmpreendimentoSelect';
 
 // id do <datalist> compartilhado de empreendimentos ativos (para células de tabela)
@@ -186,7 +187,7 @@ export function FormReuniaoPerformance({ form, set, setList, addItem, removeItem
 }
 
 // ─── 2. Resultado Semanal ──────────────────────────────────────
-export function FormResultadoSemanal({ form, set, readOnly }) {
+export function FormResultadoSemanal({ form, set, setList, addItem, removeItem, readOnly }) {
   return (
     <div className="space-y-5">
       <Section>
@@ -197,16 +198,24 @@ export function FormResultadoSemanal({ form, set, readOnly }) {
       </Section>
 
       <Section>
-        <SectionTitle number="2" title="Indicadores da Semana" />
-        <EmpreendimentoSelect value={form.empreendimento}
-          onChange={v => set('empreendimento', v)} disabled={readOnly} required />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Input label="Quantidade de Leads" type="number" value={form.qtd_leads} onChange={e => set('qtd_leads', e.target.value)} disabled={readOnly} required />
-          <Input label="Quantidade de Visitas" type="number" value={form.qtd_visitas} onChange={e => set('qtd_visitas', e.target.value)} disabled={readOnly} required />
-          <Input label="Quantidade de Pastas" type="number" value={form.qtd_pastas} onChange={e => set('qtd_pastas', e.target.value)} disabled={readOnly} required />
-          <Input label="Quantidade de Propostas" type="number" value={form.qtd_propostas} onChange={e => set('qtd_propostas', e.target.value)} disabled={readOnly} required />
-          <Input label="Quantidade de Vendas" type="number" value={form.qtd_vendas} onChange={e => set('qtd_vendas', e.target.value)} disabled={readOnly} required />
-        </div>
+        <SectionTitle number="2" title="Indicadores por Empreendimento" />
+        <p className="text-xs text-gray-400 -mt-1">Adicione um empreendimento por linha, cada um com seus próprios números.</p>
+        <EmpreendimentosDatalist id={EMP_LIST_ID} />
+        <DynamicTable
+          columns={[
+            { key: 'empreendimento', label: 'Empreendimento', list: EMP_LIST_ID },
+            { key: 'leads', label: 'Leads', type: 'number' },
+            { key: 'visitas', label: 'Visitas', type: 'number' },
+            { key: 'pastas', label: 'Pastas', type: 'number' },
+            { key: 'propostas', label: 'Propostas', type: 'number' },
+            { key: 'vendas', label: 'Vendas', type: 'number' },
+          ]}
+          rows={form.indicadores || []} readOnly={readOnly}
+          onChange={(i, k, v) => setList('indicadores', i, k, v)}
+          onAdd={() => addItem('indicadores', emptyIndicadorSemanal())}
+          onRemove={(i) => removeItem('indicadores', i)}
+          addLabel="Adicionar empreendimento"
+        />
       </Section>
 
       <Section>
