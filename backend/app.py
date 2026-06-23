@@ -116,8 +116,27 @@ def create_app():
         db.create_all()
         _ensure_runtime_columns()
         _seed_initial_data()
+        _seed_empreendimentos()
 
     return app
+
+
+def _seed_empreendimentos():
+    """Carga inicial idempotente dos empreendimentos cadastrados no sistema.
+    Insere apenas os que ainda não existem (por nome), preservando edições e
+    inativações feitas pelo admin."""
+    from backend.seed_data import EMPREENDIMENTOS_SEED
+    from backend.models import Empreendimento
+
+    existentes = {nome for (nome,) in db.session.query(Empreendimento.nome).all()}
+    criados = 0
+    for nome in EMPREENDIMENTOS_SEED:
+        if nome not in existentes:
+            db.session.add(Empreendimento(nome=nome, ativo=True))
+            criados += 1
+    if criados:
+        db.session.commit()
+        print(f"[seed] {criados} empreendimentos cadastrados.")
 
 
 def _seed_initial_data():
