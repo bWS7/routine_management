@@ -13,17 +13,28 @@ export function invalidateEmpreendimentosCache() {
   _inflight = null;
 }
 
-async function fetchEmpreendimentos() {
-  if (_cache) return _cache;
-  if (!_inflight) {
-    _inflight = apiFetch('/api/empreendimentos/?ativo=true').then(r => {
-      _cache = r?.ok ? r.data : [];
-      _inflight = null;
+function _refresh() {
+  if (_inflight) return _inflight;
+  _inflight = apiFetch('/api/empreendimentos/?ativo=true').then(r => {
+    _inflight = null;
+    if (r?.ok && Array.isArray(r.data)) {
+      _cache = r.data;
       _subscribers.forEach(fn => fn(_cache));
-      return _cache;
-    });
-  }
+    } else if (_cache == null) {
+      _cache = [];
+    }
+    return _cache || [];
+  }).catch(() => { _inflight = null; return _cache || []; });
   return _inflight;
+}
+
+// Stale-while-revalidate: devolve o cache imediatamente (se houver) e sempre
+// dispara uma re-busca em segundo plano, atualizando os campos abertos quando
+// a lista muda (ex.: novos empreendimentos cadastrados) sem precisar recarregar.
+async function fetchEmpreendimentos() {
+  const refresh = _refresh();
+  if (_cache != null) return _cache;
+  return refresh;
 }
 
 /** Hook que retorna a lista de empreendimentos ativos (com cache compartilhado). */
