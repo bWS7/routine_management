@@ -94,6 +94,10 @@ export function emptyIndicadorSemanal() {
   return { empreendimento: '', leads: '', visitas: '', pastas: '', propostas: '', vendas: '' };
 }
 
+export function emptyIndicadorTime() {
+  return { empreendimento: '', leads_recebidos: '', visitas: '', pastas: '', propostas: '', vendas: '' };
+}
+
 export function emptyCorretorAlinhamento() {
   return {
     corretor: '', meta_periodo: '', resultado_atual: '',
@@ -165,6 +169,35 @@ export function normalizeLoadedForm(reportType, dados) {
       };
     }
     if (dados.indicadores.length === 0) dados.indicadores = [emptyIndicadorSemanal()];
+    return dados;
+  }
+
+  if (reportType === 'resultado_geral_time') {
+    if (!Array.isArray(dados.indicadores)) {
+      const legado = hasValue(dados.empreendimento) ||
+        ['leads_recebidos', 'visitas', 'pastas', 'propostas', 'vendas'].some(c => hasValue(dados[c]));
+      const linha = legado
+        ? {
+            empreendimento: dados.empreendimento || '',
+            leads_recebidos: dados.leads_recebidos || '',
+            visitas: dados.visitas || '',
+            pastas: dados.pastas || '',
+            propostas: dados.propostas || '',
+            vendas: dados.vendas || '',
+          }
+        : emptyIndicadorTime();
+      return {
+        periodo_analisado: dados.periodo_analisado || '',
+        indicadores: [linha],
+        corretor_destaque: dados.corretor_destaque || '',
+        melhor_resultado: dados.melhor_resultado || '',
+        principal_desafio: dados.principal_desafio || '',
+        acoes_melhoria: dados.acoes_melhoria || '',
+        responsaveis: dados.responsaveis || '',
+        meta_proximo: dados.meta_proximo || '',
+      };
+    }
+    if (dados.indicadores.length === 0) dados.indicadores = [emptyIndicadorTime()];
     return dados;
   }
 
@@ -496,12 +529,7 @@ const REQUIRED_FIELDS = {
   ],
   resultado_geral_time: [
     'periodo_analisado',
-    'empreendimento',
-    'leads_recebidos',
-    'visitas',
-    'pastas',
-    'propostas',
-    'vendas',
+    { list: 'indicadores', fields: ['empreendimento', 'leads_recebidos', 'visitas', 'pastas', 'propostas', 'vendas'] },
     'corretor_destaque',
     'melhor_resultado',
     'principal_desafio',
@@ -724,8 +752,7 @@ export function buildEmptyForm(reportType) {
     case 'resultado_geral_time':
       return {
         periodo_analisado: '',
-        empreendimento: '',
-        leads_recebidos: '', visitas: '', pastas: '', propostas: '', vendas: '',
+        indicadores: [emptyIndicadorTime()],
         corretor_destaque: '', melhor_resultado: '', principal_desafio: '',
         acoes_melhoria: '', responsaveis: '', meta_proximo: '',
       };

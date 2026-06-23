@@ -2,7 +2,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Input, Textarea, Select } from '../ui/Input';
 import { CHECKLIST_STAND_ITENS, emptyChecklistEmpreendimento,
   emptyCorretorAlinhamento, emptyTreinamentoParceiro, emptyReuniaoStandBloco,
-  emptyIndicadorSemanal } from './reportConfigs';
+  emptyIndicadorSemanal, emptyIndicadorTime } from './reportConfigs';
 import EmpreendimentoSelect, { EmpreendimentosDatalist } from './EmpreendimentoSelect';
 
 // id do <datalist> compartilhado de empreendimentos ativos (para células de tabela)
@@ -1233,29 +1233,35 @@ export function FormMonitoramentoRotinas({ form, set, readOnly }) {
 }
 
 // ─── 22. Análise do Resultado Geral do Time (GV) ───────────────
-export function FormResultadoGeralTime({ form, set, readOnly }) {
+export function FormResultadoGeralTime({ form, set, setList, addItem, removeItem, readOnly }) {
   return (
     <div className="space-y-5">
       <Section>
         <SectionTitle number="1" title="Período" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input label="Período analisado" value={form.periodo_analisado}
-            onChange={e => set('periodo_analisado', e.target.value)} disabled={readOnly}
-            placeholder="Ex: Junho/2026" required />
-          <EmpreendimentoSelect value={form.empreendimento}
-            onChange={v => set('empreendimento', v)} disabled={readOnly} required />
-        </div>
+        <Input label="Período analisado" value={form.periodo_analisado}
+          onChange={e => set('periodo_analisado', e.target.value)} disabled={readOnly}
+          placeholder="Ex: Junho/2026" required />
       </Section>
 
       <Section>
-        <SectionTitle number="2" title="Indicadores" />
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          <Input label="Leads recebidos" type="number" value={form.leads_recebidos} onChange={e => set('leads_recebidos', e.target.value)} disabled={readOnly} required />
-          <Input label="Visitas realizadas" type="number" value={form.visitas} onChange={e => set('visitas', e.target.value)} disabled={readOnly} required />
-          <Input label="Pastas montadas" type="number" value={form.pastas} onChange={e => set('pastas', e.target.value)} disabled={readOnly} required />
-          <Input label="Propostas apresentadas" type="number" value={form.propostas} onChange={e => set('propostas', e.target.value)} disabled={readOnly} required />
-          <Input label="Vendas realizadas" type="number" value={form.vendas} onChange={e => set('vendas', e.target.value)} disabled={readOnly} required />
-        </div>
+        <SectionTitle number="2" title="Indicadores por Empreendimento" />
+        <p className="text-xs text-gray-400 -mt-1">Adicione um empreendimento por linha, cada um com seus próprios números.</p>
+        <EmpreendimentosDatalist id={EMP_LIST_ID} />
+        <DynamicTable
+          columns={[
+            { key: 'empreendimento', label: 'Empreendimento', list: EMP_LIST_ID },
+            { key: 'leads_recebidos', label: 'Leads recebidos', type: 'number' },
+            { key: 'visitas', label: 'Visitas', type: 'number' },
+            { key: 'pastas', label: 'Pastas', type: 'number' },
+            { key: 'propostas', label: 'Propostas', type: 'number' },
+            { key: 'vendas', label: 'Vendas', type: 'number' },
+          ]}
+          rows={form.indicadores || []} readOnly={readOnly}
+          onChange={(i, k, v) => setList('indicadores', i, k, v)}
+          onAdd={() => addItem('indicadores', emptyIndicadorTime())}
+          onRemove={(i) => removeItem('indicadores', i)}
+          addLabel="Adicionar empreendimento"
+        />
       </Section>
 
       <Section>
