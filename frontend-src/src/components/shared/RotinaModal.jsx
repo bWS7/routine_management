@@ -4,7 +4,7 @@ import { apiFetch } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Modal } from '../ui/Modal';
-import { Select, Input, Textarea } from '../ui/Input';
+import { Select, Textarea } from '../ui/Input';
 import Button from '../ui/Button';
 import { PeriodoBadge } from '../ui/Badge';
 import { PERIODO_LABELS, fmtDate, fmtDatetime } from '../../utils/constants';
@@ -200,20 +200,19 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
   // mesmo vencidas; apenas "Em Andamento" vencida permanece bloqueada.
   const canFillReport = canEdit && (!isOverdue || ['nao_iniciada', 'nao_realizada'].includes(status));
 
-  const showJustificativa = status === 'nao_realizada' || status === 'em_andamento';
-  const showAcao = status === 'nao_realizada';
+  const planoObrigatorio = status === 'nao_realizada';
 
   const save = async () => {
     if (isOverdue && status !== 'nao_realizada') {
-      toast('Atividade vencida. Registre como nao realizada com justificativa e plano de acao.', 'error');
+      toast('Atividade vencida. Registre como Não Realizada e preencha o Plano da Semana.', 'error');
       return;
     }
     if (!comentario || !comentario.trim()) {
       toast('O comentário é obrigatório.', 'error');
       return;
     }
-    if (status === 'nao_realizada' && (!justificativa || !acaoCorretiva)) {
-      toast('Preencha a justificativa e o plano de ação', 'error');
+    if (planoObrigatorio && !planoSemana.trim()) {
+      toast('O Plano da Semana é obrigatório quando a atividade não foi realizada.', 'error');
       return;
     }
     if (status === 'concluida' && (!rotina?.evidencias || rotina.evidencias.length === 0)) {
@@ -343,42 +342,9 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
           <Textarea label="Comentário" value={comentario} onChange={e => setComentario(e.target.value)}
             rows={2} placeholder="Observações sobre a execução..." disabled={!(canFill || canRegisterOverdue)} required />
 
-          {['sr', 'gv', 'cd'].includes(rotina.perfil) && (
-            <Textarea label="Plano da Semana" value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
-              rows={2} placeholder="Registre o plano da semana..." disabled={!canFill} />
-          )}
-
-          {rotina.perfil === 'cd' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Textarea label="Checklist" value={checklist} onChange={e => setChecklist(e.target.value)} rows={3} disabled={!canFill} />
-              <Textarea label="Relatório" value={relatorio} onChange={e => setRelatorio(e.target.value)} rows={3} disabled={!canFill} />
-            </div>
-          )}
-
-          {rotina.perfil === 'sp' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Textarea label="Visitas / Ativações" value={visitas} onChange={e => setVisitas(e.target.value)} rows={3} disabled={!canFill} />
-              <Textarea label="Resultados por Visita" value={resultados} onChange={e => setResultados(e.target.value)} rows={3} disabled={!canFill} />
-              <Textarea label="Carteira Ativa" value={carteira} onChange={e => setCarteira(e.target.value)} rows={3} disabled={!canFill} />
-              <Textarea label="Metas do Canal" value={metas} onChange={e => setMetas(e.target.value)} rows={3} disabled={!canFill} />
-            </div>
-          )}
-
-          {showJustificativa && (
-            <Textarea label="Justificativa" value={justificativa} onChange={e => setJustificativa(e.target.value)}
-              rows={2} placeholder="Por que não foi realizada?" disabled={!(canFill || canRegisterOverdue)} />
-          )}
-
-          {showAcao && (
-            <>
-              <Textarea label="Ação Corretiva" value={acaoCorretiva} onChange={e => setAcaoCorretiva(e.target.value)}
-                rows={2} placeholder="O que será feito para corrigir?" disabled={!(canFill || canRegisterOverdue)} />
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="Responsável" value={responsavel} onChange={e => setResponsavel(e.target.value)} disabled={!(canFill || canRegisterOverdue)} />
-                <Input type="date" label="Novo prazo" value={novoPrazo} onChange={e => setNovoPrazo(e.target.value)} disabled={!(canFill || canRegisterOverdue)} />
-              </div>
-            </>
-          )}
+          <Textarea label="Plano da Semana" value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
+            rows={3} placeholder={planoObrigatorio ? 'Obrigatório: descreva o plano de ação para a atividade não realizada...' : 'Registre o plano da semana...'}
+            disabled={!(canFill || canRegisterOverdue)} required={planoObrigatorio} />
 
           <div className="border-t border-gray-100 pt-5">
             <div className="flex items-center gap-2 mb-3">
