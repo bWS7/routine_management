@@ -88,6 +88,98 @@ export function emptyChecklistEmpreendimento() {
   };
 }
 
+// ── Blocos repetíveis (vários registros numa mesma atividade) ──
+
+export function emptyCorretorAlinhamento() {
+  return {
+    corretor: '', meta_periodo: '', resultado_atual: '',
+    qtd_atendimentos: '', qtd_propostas: '', qtd_vendas: '',
+    dificuldades: '', necessidade_apoio: '', tipo_apoio: '',
+    acao_definida: '', responsavel: '', proximo_acompanhamento: '',
+  };
+}
+
+export function emptyTreinamentoParceiro() {
+  return {
+    tipo_acao: 'Treinamento', parceiro_atendido: '',
+    data: new Date().toISOString().split('T')[0],
+    hora_inicio: '', hora_fim: '',
+    participantes: '', pauta: '', materiais: '', proximas_acoes: '',
+  };
+}
+
+export function emptyReuniaoStandBloco() {
+  return {
+    empreendimento: '', hora_inicio: '', hora_termino: '',
+    participantes: [{ nome: '', cargo: '' }],
+    resultados_dia: '', pendencias_operacionais: '', acoes_comerciais: '',
+    demandas_marketing: '', necessidades_stand: '',
+    plano_acao: [], observacoes: '',
+  };
+}
+
+const ALINHAMENTO_CAMPOS = [
+  'corretor', 'meta_periodo', 'resultado_atual', 'qtd_atendimentos', 'qtd_propostas',
+  'qtd_vendas', 'dificuldades', 'necessidade_apoio', 'tipo_apoio',
+  'acao_definida', 'responsavel', 'proximo_acompanhamento',
+];
+const TREINAMENTO_PARCEIRO_CAMPOS = [
+  'tipo_acao', 'parceiro_atendido', 'data', 'hora_inicio', 'hora_fim',
+  'participantes', 'pauta', 'materiais', 'proximas_acoes',
+];
+const REUNIAO_STAND_BLOCO_CAMPOS = [
+  'empreendimento', 'hora_inicio', 'hora_termino', 'participantes', 'resultados_dia',
+  'pendencias_operacionais', 'acoes_comerciais', 'demandas_marketing',
+  'necessidades_stand', 'plano_acao', 'observacoes',
+];
+
+/**
+ * Garante o formato de blocos repetíveis ao carregar relatórios, migrando dados
+ * antigos (formato "plano"/objeto único) para o novo formato em lista.
+ */
+export function normalizeLoadedForm(reportType, dados) {
+  if (!dados || typeof dados !== 'object') return dados;
+
+  if (reportType === 'alinhamento_individual') {
+    if (!Array.isArray(dados.corretores)) {
+      const legado = ALINHAMENTO_CAMPOS.some(c => hasValue(dados[c]));
+      const bloco = { ...emptyCorretorAlinhamento() };
+      if (legado) ALINHAMENTO_CAMPOS.forEach(c => { if (dados[c] !== undefined) bloco[c] = dados[c]; });
+      return { corretores: [bloco] };
+    }
+    if (dados.corretores.length === 0) dados.corretores = [emptyCorretorAlinhamento()];
+    return dados;
+  }
+
+  if (reportType === 'treinamento_parceiros') {
+    if (!Array.isArray(dados.registros)) {
+      const legado = TREINAMENTO_PARCEIRO_CAMPOS.some(c => hasValue(dados[c]));
+      const bloco = { ...emptyTreinamentoParceiro() };
+      if (legado) TREINAMENTO_PARCEIRO_CAMPOS.forEach(c => { if (dados[c] !== undefined) bloco[c] = dados[c]; });
+      return { registros: [bloco] };
+    }
+    if (dados.registros.length === 0) dados.registros = [emptyTreinamentoParceiro()];
+    return dados;
+  }
+
+  if (reportType === 'reuniao_stand') {
+    const blocoLegado = REUNIAO_STAND_BLOCO_CAMPOS.some(c => hasValue(dados[c])) || hasValue(dados.empreendimento);
+    if (!Array.isArray(dados.empreendimentos)) {
+      const bloco = { ...emptyReuniaoStandBloco() };
+      if (blocoLegado) {
+        REUNIAO_STAND_BLOCO_CAMPOS.forEach(c => { if (dados[c] !== undefined) bloco[c] = dados[c]; });
+        if (Array.isArray(dados.participantes)) bloco.participantes = dados.participantes;
+        if (Array.isArray(dados.plano_acao)) bloco.plano_acao = dados.plano_acao;
+      }
+      return { data: dados.data || new Date().toISOString().split('T')[0], empreendimentos: [bloco] };
+    }
+    if (dados.empreendimentos.length === 0) dados.empreendimentos = [emptyReuniaoStandBloco()];
+    return dados;
+  }
+
+  return dados;
+}
+
 function normalizeActivityName(value) {
   return String(value || '')
     .normalize('NFD')
@@ -179,6 +271,7 @@ const REQUIRED_FIELDS = {
   ],
   resultado_semanal: [
     'periodo_referencia',
+    'empreendimento',
     'qtd_leads',
     'qtd_visitas',
     'qtd_pastas',
@@ -250,15 +343,10 @@ const REQUIRED_FIELDS = {
     },
   ],
   treinamento_parceiros: [
-    'tipo_acao',
-    'parceiro_atendido',
-    'data',
-    'hora_inicio',
-    'hora_fim',
-    'participantes',
-    'pauta',
-    'materiais',
-    'proximas_acoes',
+    (form) => Array.isArray(form?.registros) && form.registros.length > 0 &&
+      form.registros.every(r => ['tipo_acao', 'parceiro_atendido', 'data', 'hora_inicio',
+        'hora_fim', 'participantes', 'pauta', 'materiais', 'proximas_acoes']
+        .every(f => hasValue(r?.[f]))),
   ],
 
   checklist_stand: [
@@ -271,16 +359,13 @@ const REQUIRED_FIELDS = {
   ],
   reuniao_stand: [
     'data',
-    'hora_inicio',
-    'hora_termino',
-    'empreendimento',
-    'resultados_dia',
-    'pendencias_operacionais',
-    'acoes_comerciais',
-    'demandas_marketing',
-    'necessidades_stand',
-    'observacoes',
-    { list: 'participantes', fields: ['nome', 'cargo'] },
+    (form) => Array.isArray(form?.empreendimentos) && form.empreendimentos.length > 0 &&
+      form.empreendimentos.every(b =>
+        ['empreendimento', 'hora_inicio', 'hora_termino', 'resultados_dia', 'pendencias_operacionais',
+          'acoes_comerciais', 'demandas_marketing', 'necessidades_stand', 'observacoes']
+          .every(f => hasValue(b?.[f])) &&
+        Array.isArray(b?.participantes) && b.participantes.length > 0 &&
+        b.participantes.every(p => hasValue(p?.nome) && hasValue(p?.cargo))),
   ],
   relatorio_geral_emp: [
     'periodo_analisado',
@@ -288,7 +373,7 @@ const REQUIRED_FIELDS = {
     'principais_dificuldades',
     'necessidade_apoio',
     { list: 'resultados', fields: ['empreendimento', 'leads', 'visitas', 'pastas', 'propostas', 'vendas'] },
-    { list: 'plano_acao', fields: ['acao', 'responsavel', 'prazo'] },
+    { list: 'plano_acao', fields: ['empreendimento', 'acao', 'responsavel', 'prazo'] },
   ],
   analise_concorrencia: [
     'construtora',
@@ -358,18 +443,12 @@ const REQUIRED_FIELDS = {
     { list: 'participantes', fields: ['nome', 'cargo'] },
   ],
   alinhamento_individual: [
-    'corretor',
-    'meta_periodo',
-    'resultado_atual',
-    'qtd_atendimentos',
-    'qtd_propostas',
-    'qtd_vendas',
-    'dificuldades',
-    'necessidade_apoio',
-    (form) => form?.necessidade_apoio !== 'Sim' || hasValue(form?.tipo_apoio),
-    'acao_definida',
-    'responsavel',
-    'proximo_acompanhamento',
+    (form) => Array.isArray(form?.corretores) && form.corretores.length > 0 &&
+      form.corretores.every(c =>
+        ['corretor', 'meta_periodo', 'resultado_atual', 'qtd_atendimentos', 'qtd_propostas',
+          'qtd_vendas', 'dificuldades', 'necessidade_apoio', 'acao_definida', 'responsavel',
+          'proximo_acompanhamento'].every(f => hasValue(c?.[f])) &&
+        (c?.necessidade_apoio !== 'Sim' || hasValue(c?.tipo_apoio))),
   ],
   treinamento_time: [
     'data_treinamento',
@@ -394,6 +473,7 @@ const REQUIRED_FIELDS = {
   ],
   resultado_geral_time: [
     'periodo_analisado',
+    'empreendimento',
     'leads_recebidos',
     'visitas',
     'pastas',
@@ -446,6 +526,7 @@ export function buildEmptyForm(reportType) {
     case 'resultado_semanal':
       return {
         periodo_referencia: '',
+        empreendimento: '',
         qtd_leads: '',
         qtd_visitas: '',
         qtd_pastas: '',
@@ -529,15 +610,7 @@ export function buildEmptyForm(reportType) {
 
     case 'treinamento_parceiros':
       return {
-        tipo_acao: 'Treinamento',
-        parceiro_atendido: '',
-        data: new Date().toISOString().split('T')[0],
-        hora_inicio: '',
-        hora_fim: '',
-        participantes: '',
-        pauta: '',
-        materiais: '',
-        proximas_acoes: '',
+        registros: [emptyTreinamentoParceiro()],
       };
 
     case 'checklist_stand':
@@ -551,17 +624,7 @@ export function buildEmptyForm(reportType) {
     case 'reuniao_stand':
       return {
         data: new Date().toISOString().split('T')[0],
-        hora_inicio: '',
-        hora_termino: '',
-        empreendimento: '',
-        participantes: [{ nome: '', cargo: '' }],
-        resultados_dia: '',
-        pendencias_operacionais: '',
-        acoes_comerciais: '',
-        demandas_marketing: '',
-        necessidades_stand: '',
-        plano_acao: [],
-        observacoes: '',
+        empreendimentos: [emptyReuniaoStandBloco()],
       };
 
     case 'relatorio_geral_emp':
@@ -571,7 +634,7 @@ export function buildEmptyForm(reportType) {
         destaques_positivos: '',
         principais_dificuldades: '',
         necessidade_apoio: '',
-        plano_acao: [{ acao: '', responsavel: '', prazo: '' }],
+        plano_acao: [{ empreendimento: '', acao: '', responsavel: '', prazo: '' }],
       };
 
     case 'analise_concorrencia':
@@ -619,10 +682,7 @@ export function buildEmptyForm(reportType) {
 
     case 'alinhamento_individual':
       return {
-        corretor: '', meta_periodo: '', resultado_atual: '',
-        qtd_atendimentos: '', qtd_propostas: '', qtd_vendas: '',
-        dificuldades: '', necessidade_apoio: '', tipo_apoio: '',
-        acao_definida: '', responsavel: '', proximo_acompanhamento: '',
+        corretores: [emptyCorretorAlinhamento()],
       };
 
     case 'treinamento_time':
@@ -646,6 +706,7 @@ export function buildEmptyForm(reportType) {
     case 'resultado_geral_time':
       return {
         periodo_analisado: '',
+        empreendimento: '',
         leads_recebidos: '', visitas: '', pastas: '', propostas: '', vendas: '',
         corretor_destaque: '', melhor_resultado: '', principal_desafio: '',
         acoes_melhoria: '', responsaveis: '', meta_proximo: '',

@@ -5,7 +5,8 @@ import { useToast } from '../../context/ToastContext';
 import { Modal } from '../ui/Modal';
 import { Select, Input, Textarea } from '../ui/Input';
 import Button from '../ui/Button';
-import { getReportType, REPORT_TITLES, REPORT_OBJECTIVES, buildEmptyForm, validateRequiredReport } from './reportConfigs';
+import { getReportType, REPORT_TITLES, REPORT_OBJECTIVES, buildEmptyForm, validateRequiredReport, normalizeLoadedForm } from './reportConfigs';
+import EmpreendimentoSelect from './EmpreendimentoSelect';
 import {
   FormReuniaoPerformance, FormResultadoSemanal, FormDecoesCanal,
   FormAnaliseRiscos, FormAcompanhamentoLiderados, FormComiteMensal,
@@ -77,7 +78,7 @@ function LegacyForm({ form, set, setResultado, setParticipante, addParticipante,
           <Input label="Responsável" value={rotina?.usuario_nome || currentUser?.nome || ''} disabled />
           <Input label="Cargo" value={PERFIL_LABELS[rotina?.perfil || currentUser?.perfil] || ''} disabled />
           <Input label="Regional" value={currentUser?.regional_nome || ''} disabled />
-          <Input label="Empreendimento" value={form.empreendimento} onChange={e => set('empreendimento', e.target.value)} disabled={readOnly} />
+          <EmpreendimentoSelect value={form.empreendimento} onChange={v => set('empreendimento', v)} disabled={readOnly} />
           <Input type="date" label="Data da execução" value={form.data_execucao} onChange={e => set('data_execucao', e.target.value)} disabled={readOnly} />
           <Input label="Periodicidade" value={periodicidadeLabel} disabled />
           <Input type="time" label="Hora início" value={form.hora_inicio} onChange={e => set('hora_inicio', e.target.value)} disabled={readOnly} />
@@ -254,6 +255,9 @@ export default function FormularioComercialModal({ rotinaId, rotina, currentUser
         const custom = buildEmptyForm(reportType);
         dados = custom || buildLegacyInitialForm();
       }
+
+      // Migra relatórios antigos para o formato de blocos repetíveis quando aplicável.
+      dados = normalizeLoadedForm(reportType, dados);
 
       // Legacy form safety
       if (!isCustom) {

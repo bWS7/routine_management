@@ -10,6 +10,7 @@ import PendenciasPage from './pages/PendenciasPage';
 import PendenciasAprovacaoPage from './pages/PendenciasAprovacaoPage';
 import UsuariosPage from './pages/UsuariosPage';
 import RegionaisPage from './pages/RegionaisPage';
+import EmpreendimentosPage from './pages/EmpreendimentosPage';
 import AtividadesPage from './pages/AtividadesPage';
 import AuditoriaPage from './pages/AuditoriaPage';
 import MetricasAprovacaoPage from './pages/MetricasAprovacaoPage';
@@ -24,6 +25,7 @@ const PAGES = {
   pendencias_aprovacao: PendenciasAprovacaoPage,
   usuarios:             UsuariosPage,
   regionais:            RegionaisPage,
+  empreendimentos:      EmpreendimentosPage,
   atividades:           AtividadesPage,
   perfil:               MeuPerfil,
   auditoria:            AuditoriaPage,
@@ -38,6 +40,7 @@ const PAGE_ROLES = {
   pendencias_aprovacao: ['admin', 'sr'],
   usuarios:             ['admin'],
   regionais:            ['admin'],
+  empreendimentos:      ['admin'],
   atividades:           ['admin'],
   auditoria:            ['admin'],
   metricas_aprovacao:   ['admin'],

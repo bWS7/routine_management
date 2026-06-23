@@ -7,6 +7,7 @@ from backend.extensions import db, jwt, migrate
 from backend.routes.auth import auth_bp
 from backend.routes.usuarios import usuarios_bp
 from backend.routes.regionais import regionais_bp
+from backend.routes.empreendimentos import empreendimentos_bp
 from backend.routes.atividades import atividades_bp
 from backend.routes.rotinas import rotinas_bp
 
@@ -54,6 +55,7 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(usuarios_bp, url_prefix='/api/usuarios')
     app.register_blueprint(regionais_bp, url_prefix='/api/regionais')
+    app.register_blueprint(empreendimentos_bp, url_prefix='/api/empreendimentos')
     app.register_blueprint(atividades_bp, url_prefix='/api/atividades')
     app.register_blueprint(rotinas_bp, url_prefix='/api/rotinas')
 
@@ -62,6 +64,7 @@ def create_app():
     @app.route('/dashboard')
     @app.route('/usuarios')
     @app.route('/regionais')
+    @app.route('/empreendimentos')
     @app.route('/atividades')
     @app.route('/rotinas')
     @app.route('/acompanhamento')

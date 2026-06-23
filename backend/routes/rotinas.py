@@ -144,10 +144,44 @@ def gerar_rotinas():
     return jsonify({'mensagem': f'{criadas} rotinas geradas com sucesso', 'total': criadas})
 
 
+def ensure_rotinas_atuais(usuario, referencia=None):
+    """Geração automática (Seção 3): cria, de forma idempotente, as rotinas do
+    período atual (semanal/quinzenal/mensal/diária) para o usuário, conforme o
+    catálogo do seu perfil. Chamado ao acessar as rotinas, sem necessidade de
+    agendador externo."""
+    if not usuario or not usuario.perfil:
+        return 0
+    referencia = referencia or date.today()
+    atividades = AtividadeCatalogo.query.filter_by(perfil=usuario.perfil, ativo=True).all()
+    criadas = 0
+    for atividade in atividades:
+        inicio, fim = get_periodo(atividade.periodicidade, referencia)
+        existe = Rotina.query.filter_by(
+            usuario_id=usuario.id,
+            atividade_id=atividade.id,
+            periodo_inicio=inicio
+        ).first()
+        if not existe:
+            db.session.add(Rotina(
+                usuario_id=usuario.id,
+                atividade_id=atividade.id,
+                periodo_inicio=inicio,
+                periodo_fim=fim,
+                periodicidade=atividade.periodicidade
+            ))
+            criadas += 1
+    if criadas:
+        db.session.commit()
+    return criadas
+
+
 @rotinas_bp.route('/', methods=['GET'])
 @jwt_required()
 def listar():
     me = get_current_user()
+
+    # Geração automática das rotinas do período atual do próprio usuário (Seção 3).
+    ensure_rotinas_atuais(me)
 
     usuario_id = request.args.get('usuario_id', type=int)
     regional_id = request.args.get('regional_id', type=int)
@@ -897,7 +931,10 @@ def salvar_formulario(rid):
     r = Rotina.query.get_or_404(rid)
     if not can_access_rotina(me, r):
         return jsonify({'erro': 'Acesso negado'}), 403
-    if rotina_vencida_pendente(r):
+    # Secao 1: o status nao deve impedir o preenchimento do relatorio.
+    # Atividades com status 'nao_iniciada' ou 'nao_realizada' permanecem editaveis
+    # mesmo apos o prazo; o bloqueio por vencimento so se aplica a 'em_andamento'.
+    if rotina_vencida_pendente(r) and r.status not in ('nao_iniciada', 'nao_realizada'):
         return jsonify({'erro': 'Atividade vencida. Nao e possivel preencher relatorio apos o prazo.'}), 400
 
     data = request.get_json() or {}

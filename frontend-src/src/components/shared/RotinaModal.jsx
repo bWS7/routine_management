@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, Paperclip, ExternalLink, Trash2, FileText, AlertTriangle, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { CheckCircle, Paperclip, ExternalLink, Trash2, FileText, AlertTriangle, AlertCircle, UploadCloud } from 'lucide-react';
 import { apiFetch } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -12,18 +12,33 @@ import FormularioComercialModal from './FormularioComercialModal';
 
 function EvidenciasList({ evidencias, rotinaId, canEdit, onReload }) {
   const { toast } = useToast();
-  const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const inputRef = useRef(null);
 
-  const upload = async () => {
-    if (!file) { toast('Selecione um arquivo', 'error'); return; }
+  // Upload imediato ao selecionar ou soltar arquivos (sem botão extra).
+  const uploadFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
     setUploading(true);
-    const form = new FormData();
-    form.append('arquivo', file);
-    const r = await apiFetch(`/api/rotinas/${rotinaId}/evidencias`, { method: 'POST', body: form });
-    if (r?.ok) { toast('Evidência anexada!', 'success'); onReload(); setFile(null); }
-    else toast(r?.data?.erro || 'Erro ao anexar', 'error');
+    let ok = 0;
+    for (const f of files) {
+      const form = new FormData();
+      form.append('arquivo', f);
+      const r = await apiFetch(`/api/rotinas/${rotinaId}/evidencias`, { method: 'POST', body: form });
+      if (r?.ok) ok += 1;
+      else toast(r?.data?.erro || `Erro ao anexar ${f.name}`, 'error');
+    }
+    if (ok > 0) { toast(ok > 1 ? `${ok} evidências anexadas!` : 'Evidência anexada!', 'success'); onReload(); }
     setUploading(false);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (!canEdit || uploading) return;
+    uploadFiles(e.dataTransfer.files);
   };
 
   const remove = async (eid) => {
@@ -56,15 +71,41 @@ function EvidenciasList({ evidencias, rotinaId, canEdit, onReload }) {
         <p className="text-sm text-gray-400 mb-3">Nenhuma evidência anexada.</p>
       )}
       {canEdit && (
-        <div className="flex items-center gap-2">
+        <>
           <input
+            ref={inputRef}
             type="file"
-            onChange={e => setFile(e.target.files?.[0] || null)}
-            className="flex-1 text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0
-                       file:text-xs file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+            multiple
+            className="hidden"
+            onChange={e => uploadFiles(e.target.files)}
           />
-          <Button variant="secondary" icon={Paperclip} loading={uploading} onClick={upload} size="xs">Anexar</Button>
-        </div>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => !uploading && inputRef.current?.click()}
+            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !uploading) inputRef.current?.click(); }}
+            onDragOver={e => { e.preventDefault(); if (!uploading) setDragActive(true); }}
+            onDragLeave={e => { e.preventDefault(); setDragActive(false); }}
+            onDrop={onDrop}
+            className={`flex flex-col items-center justify-center gap-1.5 px-4 py-5 rounded-xl border-2 border-dashed
+              cursor-pointer transition-colors text-center
+              ${dragActive ? 'border-primary-400 bg-primary-50' : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'}
+              ${uploading ? 'opacity-60 pointer-events-none' : ''}`}
+          >
+            {uploading ? (
+              <>
+                <div className="h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-gray-500">Enviando...</span>
+              </>
+            ) : (
+              <>
+                <UploadCloud size={22} className="text-primary-500" />
+                <span className="text-sm text-gray-600 font-medium">Arraste arquivos aqui ou clique para anexar</span>
+                <span className="text-[11px] text-gray-400">Você pode selecionar vários arquivos de uma vez</span>
+              </>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -153,6 +194,10 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
                   currentUser?.perfil === 'sr';
   const canFill = canEdit && !isOverdue;
   const canRegisterOverdue = canEdit && isOverdue;
+  // Seção 1: o status não deve impedir o preenchimento do relatório. Atividades
+  // com status "Não Iniciada" / "Não Realizada" continuam com o relatório editável
+  // mesmo vencidas; apenas "Em Andamento" vencida permanece bloqueada.
+  const canFillReport = canEdit && (!isOverdue || ['nao_iniciada', 'nao_realizada'].includes(status));
 
   const showJustificativa = status === 'nao_realizada' || status === 'em_andamento';
   const showAcao = status === 'nao_realizada';
@@ -160,6 +205,10 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
   const save = async () => {
     if (isOverdue && status !== 'nao_realizada') {
       toast('Atividade vencida. Registre como nao realizada com justificativa e plano de acao.', 'error');
+      return;
+    }
+    if (!comentario || !comentario.trim()) {
+      toast('O comentário é obrigatório.', 'error');
       return;
     }
     if (status === 'nao_realizada' && (!justificativa || !acaoCorretiva)) {
@@ -203,7 +252,7 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
               variant={rotina?.formulario_preenchido ? 'secondary' : 'primary'}
               icon={FileText}
               onClick={() => setShowFormulario(true)}
-              disabled={!canFill && !rotina?.formulario_preenchido}
+              disabled={!canFillReport && !rotina?.formulario_preenchido}
             >
               {rotina?.formulario_preenchido ? 'Ver Relatório' : 'Preencher Relatório'}
             </Button>
@@ -230,7 +279,7 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
           {isOverdue && (
             <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl text-sm text-red-700 border border-red-200">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-              <span>Atividade vencida. O preenchimento foi bloqueado; registre como nao realizada com justificativa e plano de acao.</span>
+              <span>Atividade vencida. Registre como nao realizada com justificativa e plano de acao. O relatorio continua disponivel para preenchimento.</span>
             </div>
           )}
           {/* Formulário obrigatório alert */}
@@ -291,7 +340,7 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
           </Select>
 
           <Textarea label="Comentário" value={comentario} onChange={e => setComentario(e.target.value)}
-            rows={2} placeholder="Observações sobre a execução..." disabled={!canFill} />
+            rows={2} placeholder="Observações sobre a execução..." disabled={!(canFill || canRegisterOverdue)} required />
 
           {['sr', 'gv', 'cd'].includes(rotina.perfil) && (
             <Textarea label="Plano da Semana" value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
@@ -363,7 +412,7 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
         rotinaId={rotinaId}
         rotina={rotina}
         currentUser={currentUser}
-        readOnly={!canFill}
+        readOnly={!canFillReport}
         onClose={() => setShowFormulario(false)}
         onSaved={() => { loadRotina(true); }}
       />

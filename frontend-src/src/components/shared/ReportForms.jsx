@@ -1,6 +1,11 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Textarea, Select } from '../ui/Input';
-import { CHECKLIST_STAND_ITENS, emptyChecklistEmpreendimento } from './reportConfigs';
+import { CHECKLIST_STAND_ITENS, emptyChecklistEmpreendimento,
+  emptyCorretorAlinhamento, emptyTreinamentoParceiro, emptyReuniaoStandBloco } from './reportConfigs';
+import EmpreendimentoSelect, { EmpreendimentosDatalist } from './EmpreendimentoSelect';
+
+// id do <datalist> compartilhado de empreendimentos ativos (para células de tabela)
+const EMP_LIST_ID = 'empreendimentos-ativos';
 
 const PRIORIDADES = ['Alta', 'Média', 'Baixa'];
 const TIPOS_VISITA = ['Visita', 'Reunião', 'Café', 'Evento', 'Outro'];
@@ -60,6 +65,7 @@ function DynamicTable({ columns, rows, onAdd, onRemove, onChange, readOnly, addL
                     ) : (
                       <input
                         type={c.type || 'text'}
+                        list={c.list}
                         className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary-400 disabled:bg-gray-50"
                         value={row[c.key] || ''} onChange={e => onChange(i, c.key, e.target.value)}
                         placeholder={c.placeholder || c.label} disabled={readOnly} required={!optional}
@@ -84,6 +90,32 @@ function DynamicTable({ columns, rows, onAdd, onRemove, onChange, readOnly, addL
       {!readOnly && (
         <button onClick={onAdd} className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-800 font-medium mt-2">
           <Plus size={13} /> {addLabel || 'Adicionar'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Blocos repetíveis: vários registros (corretores, empreendimentos, etc.) numa atividade.
+function RepeatableBlocks({ items, itemLabel, addLabel, onAdd, onRemove, readOnly, children }) {
+  return (
+    <div className="space-y-4">
+      {items.map((item, idx) => (
+        <div key={idx} className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50/40">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-primary-700 uppercase tracking-wide">{itemLabel} {idx + 1}</span>
+            {!readOnly && items.length > 1 && (
+              <button onClick={() => onRemove(idx)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-error transition-colors">
+                <Trash2 size={13} /> Remover
+              </button>
+            )}
+          </div>
+          {children(item, idx)}
+        </div>
+      ))}
+      {!readOnly && (
+        <button onClick={onAdd} className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-800 font-medium">
+          <Plus size={15} /> {addLabel}
         </button>
       )}
     </div>
@@ -159,9 +191,13 @@ export function FormResultadoSemanal({ form, set, readOnly }) {
     <div className="space-y-5">
       <Section>
         <SectionTitle number="1" title="Período" />
-        <Input label="Período de referência" value={form.periodo_referencia}
-          onChange={e => set('periodo_referencia', e.target.value)} disabled={readOnly}
-          placeholder="Ex: 09/06 a 13/06/2026" required />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input label="Período de referência" value={form.periodo_referencia}
+            onChange={e => set('periodo_referencia', e.target.value)} disabled={readOnly}
+            placeholder="Ex: 09/06 a 13/06/2026" required />
+          <EmpreendimentoSelect value={form.empreendimento}
+            onChange={v => set('empreendimento', v)} disabled={readOnly} required />
+        </div>
       </Section>
 
       <Section>
@@ -460,46 +496,42 @@ export function FormReativacaoExpansao({ form, setList, addItem, removeItem, rea
 }
 
 // ─── 11. Treinamento e Alinhamento com Parceiros (SP) ──────────
-export function FormTreinamentoParceiros({ form, set, readOnly }) {
+export function FormTreinamentoParceiros({ form, setList, addItem, removeItem, readOnly }) {
+  const registros = form.registros || [];
   return (
     <div className="space-y-5">
       <Section>
-        <SectionTitle number="1" title="Dados da Sessão" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Select label="Tipo da ação" value={form.tipo_acao}
-            onChange={e => set('tipo_acao', e.target.value)} disabled={readOnly} required>
-            {TIPOS_TREINAMENTO.map(t => <option key={t} value={t}>{t}</option>)}
-          </Select>
-          <Input label="Parceiro atendido" value={form.parceiro_atendido}
-            onChange={e => set('parceiro_atendido', e.target.value)} disabled={readOnly} required />
-          <Input type="date" label="Data" value={form.data}
-            onChange={e => set('data', e.target.value)} disabled={readOnly} required />
-          <div className="grid grid-cols-2 gap-3">
-            <Input type="time" label="Horário início" value={form.hora_inicio}
-              onChange={e => set('hora_inicio', e.target.value)} disabled={readOnly} required />
-            <Input type="time" label="Horário fim" value={form.hora_fim}
-              onChange={e => set('hora_fim', e.target.value)} disabled={readOnly} required />
-          </div>
-        </div>
-      </Section>
-
-      <Section>
-        <SectionTitle number="2" title="Conteúdo" />
-        <Textarea label="Participantes" value={form.participantes}
-          onChange={e => set('participantes', e.target.value)} rows={2} disabled={readOnly}
-          placeholder="Liste os participantes da sessão..." required />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <Textarea label="Pauta abordada" value={form.pauta}
-            onChange={e => set('pauta', e.target.value)} rows={3} disabled={readOnly} required />
-          <Textarea label="Materiais apresentados" value={form.materiais}
-            onChange={e => set('materiais', e.target.value)} rows={3} disabled={readOnly} required />
-        </div>
-      </Section>
-
-      <Section>
-        <SectionTitle number="3" title="Próximas Ações" />
-        <Textarea label="Próximas ações acordadas" value={form.proximas_acoes}
-          onChange={e => set('proximas_acoes', e.target.value)} rows={3} disabled={readOnly} required />
+        <SectionTitle number="1" title="Treinamentos / Alinhamentos" />
+        <p className="text-xs text-gray-400 -mt-1">Registre múltiplos treinamentos, alinhamentos ou reuniões nesta mesma atividade.</p>
+        <RepeatableBlocks items={registros} itemLabel="Registro" addLabel="Adicionar Novo Registro" readOnly={readOnly}
+          onAdd={() => addItem('registros', emptyTreinamentoParceiro())}
+          onRemove={(i) => removeItem('registros', i)}>
+          {(r, i) => {
+            const upd = (field, value) => setList('registros', i, field, value);
+            return (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Select label="Tipo da ação" value={r.tipo_acao} onChange={e => upd('tipo_acao', e.target.value)} disabled={readOnly} required>
+                    {TIPOS_TREINAMENTO.map(t => <option key={t} value={t}>{t}</option>)}
+                  </Select>
+                  <Input label="Parceiro atendido" value={r.parceiro_atendido} onChange={e => upd('parceiro_atendido', e.target.value)} disabled={readOnly} required />
+                  <Input type="date" label="Data" value={r.data} onChange={e => upd('data', e.target.value)} disabled={readOnly} required />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input type="time" label="Horário início" value={r.hora_inicio} onChange={e => upd('hora_inicio', e.target.value)} disabled={readOnly} required />
+                    <Input type="time" label="Horário fim" value={r.hora_fim} onChange={e => upd('hora_fim', e.target.value)} disabled={readOnly} required />
+                  </div>
+                </div>
+                <Textarea label="Participantes" value={r.participantes} onChange={e => upd('participantes', e.target.value)} rows={2} disabled={readOnly}
+                  placeholder="Liste os participantes da sessão..." required />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <Textarea label="Pauta abordada" value={r.pauta} onChange={e => upd('pauta', e.target.value)} rows={3} disabled={readOnly} required />
+                  <Textarea label="Materiais apresentados" value={r.materiais} onChange={e => upd('materiais', e.target.value)} rows={3} disabled={readOnly} required />
+                </div>
+                <Textarea label="Próximas ações acordadas" value={r.proximas_acoes} onChange={e => upd('proximas_acoes', e.target.value)} rows={2} disabled={readOnly} required />
+              </div>
+            );
+          }}
+        </RepeatableBlocks>
       </Section>
     </div>
   );
@@ -518,6 +550,7 @@ export function FormChecklistStand({ form, set, setList, addItem, removeItem, re
 
   return (
     <div className="space-y-5">
+      <EmpreendimentosDatalist id={EMP_LIST_ID} />
       <Section>
         <SectionTitle number="1" title="Identificação da Atividade" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -538,7 +571,7 @@ export function FormChecklistStand({ form, set, setList, addItem, removeItem, re
                 {emps.map((e, i) => (
                   <th key={i} className="text-left pb-2 pr-2 min-w-[150px]">
                     <div className="flex items-center gap-1">
-                      <input className={cellClass} value={e.nome || ''} placeholder="Empreendimento"
+                      <input className={cellClass} value={e.nome || ''} placeholder="Empreendimento" list={EMP_LIST_ID}
                         onChange={ev => setList('empreendimentos', i, 'nome', ev.target.value)} disabled={readOnly} required />
                       {!readOnly && emps.length > 1 && (
                         <button onClick={() => removeItem('empreendimentos', i)} className="p-1 text-gray-300 hover:text-error transition-colors shrink-0">
@@ -590,6 +623,7 @@ export function FormChecklistStand({ form, set, setList, addItem, removeItem, re
         <p className="text-xs text-gray-400 -mt-1">Opcional — registre apenas se houver itens reprovados.</p>
         <DynamicTable
           columns={[
+            { key: 'empreendimento', label: 'Empreendimento', list: EMP_LIST_ID },
             { key: 'problema', label: 'Problema identificado' },
             { key: 'criticidade', label: 'Criticidade', type: 'select', options: CRITICIDADES, placeholderOption: 'Selecione' },
             { key: 'acao', label: 'Ação adotada' },
@@ -597,7 +631,7 @@ export function FormChecklistStand({ form, set, setList, addItem, removeItem, re
           ]}
           rows={form.nao_conformidades || []} readOnly={readOnly} optional
           onChange={(i, k, v) => setList('nao_conformidades', i, k, v)}
-          onAdd={() => addItem('nao_conformidades', { problema: '', criticidade: '', acao: '', responsavel: '' })}
+          onAdd={() => addItem('nao_conformidades', { empreendimento: '', problema: '', criticidade: '', acao: '', responsavel: '' })}
           onRemove={(i) => removeItem('nao_conformidades', i)}
           addLabel="Adicionar não conformidade"
         />
@@ -608,72 +642,75 @@ export function FormChecklistStand({ form, set, setList, addItem, removeItem, re
 
 // ─── 13. Reunião Rápida do Stand (CD) ──────────────────────────
 export function FormReuniaoStand({ form, set, setList, addItem, removeItem, readOnly }) {
+  const blocos = form.empreendimentos || [];
   return (
     <div className="space-y-5">
       <Section>
         <SectionTitle number="1" title="Identificação" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input type="date" label="Data" value={form.data}
-            onChange={e => set('data', e.target.value)} disabled={readOnly} required />
-          <Input label="Empreendimento" value={form.empreendimento}
-            onChange={e => set('empreendimento', e.target.value)} disabled={readOnly} required />
-          <Input type="time" label="Hora início" value={form.hora_inicio}
-            onChange={e => set('hora_inicio', e.target.value)} disabled={readOnly} required />
-          <Input type="time" label="Hora término" value={form.hora_termino}
-            onChange={e => set('hora_termino', e.target.value)} disabled={readOnly} required />
-        </div>
+        <Input type="date" label="Data" value={form.data}
+          onChange={e => set('data', e.target.value)} disabled={readOnly} required className="sm:max-w-xs" />
       </Section>
 
       <Section>
-        <SectionTitle number="2" title="Participantes" />
-        <DynamicTable
-          columns={[{ key: 'nome', label: 'Nome' }, { key: 'cargo', label: 'Cargo' }]}
-          rows={form.participantes || []} readOnly={readOnly}
-          onChange={(i, k, v) => setList('participantes', i, k, v)}
-          onAdd={() => addItem('participantes', { nome: '', cargo: '' })}
-          onRemove={(i) => removeItem('participantes', i)}
-          addLabel="Adicionar participante"
-        />
-      </Section>
+        <SectionTitle number="2" title="Empreendimentos" />
+        <p className="text-xs text-gray-400 -mt-1">Cada empreendimento gera um registro independente para relatórios e indicadores.</p>
+        <RepeatableBlocks items={blocos} itemLabel="Empreendimento" addLabel="Adicionar Empreendimento" readOnly={readOnly}
+          onAdd={() => addItem('empreendimentos', emptyReuniaoStandBloco())}
+          onRemove={(i) => removeItem('empreendimentos', i)}>
+          {(b, i) => {
+            const upd = (field, value) => setList('empreendimentos', i, field, value);
+            const parts = b.participantes || [];
+            const planos = b.plano_acao || [];
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <EmpreendimentoSelect value={b.empreendimento} onChange={v => upd('empreendimento', v)} disabled={readOnly} required />
+                  <Input type="time" label="Hora início" value={b.hora_inicio} onChange={e => upd('hora_inicio', e.target.value)} disabled={readOnly} required />
+                  <Input type="time" label="Hora término" value={b.hora_termino} onChange={e => upd('hora_termino', e.target.value)} disabled={readOnly} required />
+                </div>
 
-      <Section>
-        <SectionTitle number="3" title="Principais Temas" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <Textarea label="Resultados do dia/período" value={form.resultados_dia}
-            onChange={e => set('resultados_dia', e.target.value)} rows={2} disabled={readOnly} required />
-          <Textarea label="Pendências operacionais" value={form.pendencias_operacionais}
-            onChange={e => set('pendencias_operacionais', e.target.value)} rows={2} disabled={readOnly} required />
-          <Textarea label="Ações comerciais em andamento" value={form.acoes_comerciais}
-            onChange={e => set('acoes_comerciais', e.target.value)} rows={2} disabled={readOnly} required />
-          <Textarea label="Demandas de marketing" value={form.demandas_marketing}
-            onChange={e => set('demandas_marketing', e.target.value)} rows={2} disabled={readOnly} required />
-          <Textarea label="Necessidades do stand" value={form.necessidades_stand}
-            onChange={e => set('necessidades_stand', e.target.value)} rows={2} disabled={readOnly} required />
-        </div>
-      </Section>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1.5">Participantes</p>
+                  <DynamicTable
+                    columns={[{ key: 'nome', label: 'Nome' }, { key: 'cargo', label: 'Cargo' }]}
+                    rows={parts} readOnly={readOnly}
+                    onChange={(pi, k, v) => upd('participantes', parts.map((p, idx) => idx === pi ? { ...p, [k]: v } : p))}
+                    onAdd={() => upd('participantes', [...parts, { nome: '', cargo: '' }])}
+                    onRemove={(pi) => upd('participantes', parts.filter((_, idx) => idx !== pi))}
+                    addLabel="Adicionar participante"
+                  />
+                </div>
 
-      <Section>
-        <SectionTitle number="4" title="Plano de Ação" />
-        <p className="text-xs text-gray-400 -mt-1">Opcional.</p>
-        <DynamicTable
-          columns={[
-            { key: 'acao', label: 'Ação' },
-            { key: 'responsavel', label: 'Responsável' },
-            { key: 'prazo', label: 'Prazo', type: 'date' },
-            { key: 'status', label: 'Status', type: 'select', options: STATUS_ACAO, placeholderOption: 'Selecione' },
-          ]}
-          rows={form.plano_acao || []} readOnly={readOnly} optional
-          onChange={(i, k, v) => setList('plano_acao', i, k, v)}
-          onAdd={() => addItem('plano_acao', { acao: '', responsavel: '', prazo: '', status: '' })}
-          onRemove={(i) => removeItem('plano_acao', i)}
-          addLabel="Adicionar ação"
-        />
-      </Section>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <Textarea label="Resultados do dia/período" value={b.resultados_dia} onChange={e => upd('resultados_dia', e.target.value)} rows={2} disabled={readOnly} required />
+                  <Textarea label="Pendências operacionais" value={b.pendencias_operacionais} onChange={e => upd('pendencias_operacionais', e.target.value)} rows={2} disabled={readOnly} required />
+                  <Textarea label="Ações comerciais em andamento" value={b.acoes_comerciais} onChange={e => upd('acoes_comerciais', e.target.value)} rows={2} disabled={readOnly} required />
+                  <Textarea label="Demandas de marketing" value={b.demandas_marketing} onChange={e => upd('demandas_marketing', e.target.value)} rows={2} disabled={readOnly} required />
+                  <Textarea label="Necessidades do stand" value={b.necessidades_stand} onChange={e => upd('necessidades_stand', e.target.value)} rows={2} disabled={readOnly} required />
+                </div>
 
-      <Section>
-        <SectionTitle number="5" title="Observações Gerais" />
-        <Textarea label="Observações gerais" value={form.observacoes}
-          onChange={e => set('observacoes', e.target.value)} rows={3} disabled={readOnly} required />
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1.5">Plano de Ação <span className="text-gray-400">(opcional)</span></p>
+                  <DynamicTable
+                    columns={[
+                      { key: 'acao', label: 'Ação' },
+                      { key: 'responsavel', label: 'Responsável' },
+                      { key: 'prazo', label: 'Prazo', type: 'date' },
+                      { key: 'status', label: 'Status', type: 'select', options: STATUS_ACAO, placeholderOption: 'Selecione' },
+                    ]}
+                    rows={planos} readOnly={readOnly} optional
+                    onChange={(pi, k, v) => upd('plano_acao', planos.map((p, idx) => idx === pi ? { ...p, [k]: v } : p))}
+                    onAdd={() => upd('plano_acao', [...planos, { acao: '', responsavel: '', prazo: '', status: '' }])}
+                    onRemove={(pi) => upd('plano_acao', planos.filter((_, idx) => idx !== pi))}
+                    addLabel="Adicionar ação"
+                  />
+                </div>
+
+                <Textarea label="Observações gerais" value={b.observacoes} onChange={e => upd('observacoes', e.target.value)} rows={2} disabled={readOnly} required />
+              </div>
+            );
+          }}
+        </RepeatableBlocks>
       </Section>
     </div>
   );
@@ -692,9 +729,10 @@ export function FormRelatorioGeralEmp({ form, set, setList, addItem, removeItem,
 
       <Section>
         <SectionTitle number="2" title="Resultados por Empreendimento" />
+        <EmpreendimentosDatalist id={EMP_LIST_ID} />
         <DynamicTable
           columns={[
-            { key: 'empreendimento', label: 'Empreendimento' },
+            { key: 'empreendimento', label: 'Empreendimento', list: EMP_LIST_ID },
             { key: 'leads', label: 'Leads', type: 'number' },
             { key: 'visitas', label: 'Visitas', type: 'number' },
             { key: 'pastas', label: 'Pastas', type: 'number' },
@@ -725,13 +763,14 @@ export function FormRelatorioGeralEmp({ form, set, setList, addItem, removeItem,
         <SectionTitle number="4" title="Plano de Ação" />
         <DynamicTable
           columns={[
+            { key: 'empreendimento', label: 'Empreendimento', list: EMP_LIST_ID },
             { key: 'acao', label: 'Ação' },
             { key: 'responsavel', label: 'Responsável' },
             { key: 'prazo', label: 'Prazo', type: 'date' },
           ]}
           rows={form.plano_acao || []} readOnly={readOnly}
           onChange={(i, k, v) => setList('plano_acao', i, k, v)}
-          onAdd={() => addItem('plano_acao', { acao: '', responsavel: '', prazo: '' })}
+          onAdd={() => addItem('plano_acao', { empreendimento: '', acao: '', responsavel: '', prazo: '' })}
           onRemove={(i) => removeItem('plano_acao', i)}
           addLabel="Adicionar ação"
         />
@@ -840,8 +879,8 @@ export function FormRelatorioMensalEmp({ form, set, setList, addItem, removeItem
       <Section>
         <SectionTitle number="1" title="Identificação" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input label="Empreendimento" value={form.empreendimento}
-            onChange={e => set('empreendimento', e.target.value)} disabled={readOnly} required />
+          <EmpreendimentoSelect value={form.empreendimento}
+            onChange={v => set('empreendimento', v)} disabled={readOnly} required />
           <Input label="Mês de referência" value={form.mes_referencia}
             onChange={e => set('mes_referencia', e.target.value)} disabled={readOnly}
             placeholder="Ex: Junho/2026" required />
@@ -1009,64 +1048,53 @@ export function FormPerformanceCorretores({ form, set, setList, addItem, removeI
 }
 
 // ─── 19. Alinhamento Individual com Corretores 1:1 (GV) ────────
-export function FormAlinhamentoIndividual({ form, set, readOnly }) {
-  const precisaApoio = form.necessidade_apoio === 'Sim';
+export function FormAlinhamentoIndividual({ form, setList, addItem, removeItem, readOnly }) {
+  const corretores = form.corretores || [];
   return (
     <div className="space-y-5">
       <Section>
-        <SectionTitle number="1" title="Identificação" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Input label="Corretor acompanhado" value={form.corretor}
-            onChange={e => set('corretor', e.target.value)} disabled={readOnly} required />
-          <Input label="Meta do período" value={form.meta_periodo}
-            onChange={e => set('meta_periodo', e.target.value)} disabled={readOnly} required />
-          <Input label="Resultado atual" value={form.resultado_atual}
-            onChange={e => set('resultado_atual', e.target.value)} disabled={readOnly} required />
-        </div>
-      </Section>
-
-      <Section>
-        <SectionTitle number="2" title="Indicadores" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Input label="Atendimentos realizados" type="number" value={form.qtd_atendimentos}
-            onChange={e => set('qtd_atendimentos', e.target.value)} disabled={readOnly} required />
-          <Input label="Propostas apresentadas" type="number" value={form.qtd_propostas}
-            onChange={e => set('qtd_propostas', e.target.value)} disabled={readOnly} required />
-          <Input label="Vendas realizadas" type="number" value={form.qtd_vendas}
-            onChange={e => set('qtd_vendas', e.target.value)} disabled={readOnly} required />
-        </div>
-      </Section>
-
-      <Section>
-        <SectionTitle number="3" title="Dificuldades e Apoio" />
-        <Textarea label="Principais dificuldades identificadas" value={form.dificuldades}
-          onChange={e => set('dificuldades', e.target.value)} rows={3} disabled={readOnly} required />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Select label="Necessidade de apoio?" value={form.necessidade_apoio}
-            onChange={e => set('necessidade_apoio', e.target.value)} disabled={readOnly} required>
-            <option value="">Selecione...</option>
-            {SIM_NAO.map(o => <option key={o} value={o}>{o}</option>)}
-          </Select>
-          {precisaApoio && (
-            <Select label="Tipo de apoio necessário" value={form.tipo_apoio}
-              onChange={e => set('tipo_apoio', e.target.value)} disabled={readOnly} required>
-              <option value="">Selecione...</option>
-              {TIPOS_APOIO.map(o => <option key={o} value={o}>{o}</option>)}
-            </Select>
-          )}
-        </div>
-      </Section>
-
-      <Section>
-        <SectionTitle number="4" title="Plano de Ação" />
-        <Textarea label="Ação definida" value={form.acao_definida}
-          onChange={e => set('acao_definida', e.target.value)} rows={2} disabled={readOnly} required />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input label="Responsável" value={form.responsavel}
-            onChange={e => set('responsavel', e.target.value)} disabled={readOnly} required />
-          <Input type="date" label="Data do próximo acompanhamento" value={form.proximo_acompanhamento}
-            onChange={e => set('proximo_acompanhamento', e.target.value)} disabled={readOnly} required />
-        </div>
+        <SectionTitle number="1" title="Corretores Acompanhados" />
+        <p className="text-xs text-gray-400 -mt-1">Registre vários corretores nesta mesma atividade.</p>
+        <RepeatableBlocks items={corretores} itemLabel="Corretor" addLabel="Adicionar Novo Corretor" readOnly={readOnly}
+          onAdd={() => addItem('corretores', emptyCorretorAlinhamento())}
+          onRemove={(i) => removeItem('corretores', i)}>
+          {(c, i) => {
+            const precisaApoio = c.necessidade_apoio === 'Sim';
+            const upd = (field, value) => setList('corretores', i, field, value);
+            return (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Input label="Corretor acompanhado" value={c.corretor} onChange={e => upd('corretor', e.target.value)} disabled={readOnly} required />
+                  <Input label="Meta do período" value={c.meta_periodo} onChange={e => upd('meta_periodo', e.target.value)} disabled={readOnly} required />
+                  <Input label="Resultado atual" value={c.resultado_atual} onChange={e => upd('resultado_atual', e.target.value)} disabled={readOnly} required />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Input label="Atendimentos realizados" type="number" value={c.qtd_atendimentos} onChange={e => upd('qtd_atendimentos', e.target.value)} disabled={readOnly} required />
+                  <Input label="Propostas apresentadas" type="number" value={c.qtd_propostas} onChange={e => upd('qtd_propostas', e.target.value)} disabled={readOnly} required />
+                  <Input label="Vendas realizadas" type="number" value={c.qtd_vendas} onChange={e => upd('qtd_vendas', e.target.value)} disabled={readOnly} required />
+                </div>
+                <Textarea label="Principais dificuldades identificadas" value={c.dificuldades} onChange={e => upd('dificuldades', e.target.value)} rows={2} disabled={readOnly} required />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Select label="Necessidade de apoio?" value={c.necessidade_apoio} onChange={e => upd('necessidade_apoio', e.target.value)} disabled={readOnly} required>
+                    <option value="">Selecione...</option>
+                    {SIM_NAO.map(o => <option key={o} value={o}>{o}</option>)}
+                  </Select>
+                  {precisaApoio && (
+                    <Select label="Tipo de apoio necessário" value={c.tipo_apoio} onChange={e => upd('tipo_apoio', e.target.value)} disabled={readOnly} required>
+                      <option value="">Selecione...</option>
+                      {TIPOS_APOIO.map(o => <option key={o} value={o}>{o}</option>)}
+                    </Select>
+                  )}
+                </div>
+                <Textarea label="Ação definida" value={c.acao_definida} onChange={e => upd('acao_definida', e.target.value)} rows={2} disabled={readOnly} required />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input label="Responsável" value={c.responsavel} onChange={e => upd('responsavel', e.target.value)} disabled={readOnly} required />
+                  <Input type="date" label="Data do próximo acompanhamento" value={c.proximo_acompanhamento} onChange={e => upd('proximo_acompanhamento', e.target.value)} disabled={readOnly} required />
+                </div>
+              </div>
+            );
+          }}
+        </RepeatableBlocks>
       </Section>
     </div>
   );
@@ -1203,9 +1231,13 @@ export function FormResultadoGeralTime({ form, set, readOnly }) {
     <div className="space-y-5">
       <Section>
         <SectionTitle number="1" title="Período" />
-        <Input label="Período analisado" value={form.periodo_analisado}
-          onChange={e => set('periodo_analisado', e.target.value)} disabled={readOnly}
-          placeholder="Ex: Junho/2026" required />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input label="Período analisado" value={form.periodo_analisado}
+            onChange={e => set('periodo_analisado', e.target.value)} disabled={readOnly}
+            placeholder="Ex: Junho/2026" required />
+          <EmpreendimentoSelect value={form.empreendimento}
+            onChange={v => set('empreendimento', v)} disabled={readOnly} required />
+        </div>
       </Section>
 
       <Section>

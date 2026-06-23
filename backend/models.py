@@ -23,6 +23,28 @@ class Regional(db.Model):
         }
 
 
+class Empreendimento(db.Model):
+    __tablename__ = 'empreendimentos'
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(150), nullable=False)
+    descricao = db.Column(db.Text)
+    regional_id = db.Column(db.Integer, db.ForeignKey('regionais.id'), nullable=True)
+    ativo = db.Column(db.Boolean, default=True)
+    criado_em = db.Column(db.DateTime, default=get_now_br)
+    regional = db.relationship('Regional', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'descricao': self.descricao,
+            'regional_id': self.regional_id,
+            'regional_nome': self.regional.nome if self.regional else None,
+            'ativo': self.ativo,
+            'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
+        }
+
+
 class Usuario(db.Model):
     __tablename__ = 'usuarios'
     id = db.Column(db.Integer, primary_key=True)
