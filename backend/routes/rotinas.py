@@ -389,7 +389,7 @@ def upload_evidencia(rid):
         rotina_id=rotina.id,
         nome_arquivo=arquivo.filename,
         url=f"/uploads/{nome_final}",
-        tipo=arquivo.mimetype or 'arquivo',
+        tipo=(arquivo.mimetype or 'arquivo')[:255],
         conteudo=conteudo,
     )
     db.session.add(evidencia)

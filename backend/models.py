@@ -213,7 +213,7 @@ class Evidencia(db.Model):
     rotina_id = db.Column(db.Integer, db.ForeignKey('rotinas.id'), nullable=False)
     nome_arquivo = db.Column(db.String(255))
     url = db.Column(db.Text)
-    tipo = db.Column(db.String(50))
+    tipo = db.Column(db.String(255))
     conteudo = db.Column(db.LargeBinary, nullable=True)
     criado_em = db.Column(db.DateTime, default=get_now_br)
 

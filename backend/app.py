@@ -328,6 +328,8 @@ def _ensure_runtime_columns():
         existentes = {col['name'] for col in insp.get_columns('evidencias')}
         if 'conteudo' not in existentes:
             db.session.execute(text("ALTER TABLE evidencias ADD COLUMN conteudo BYTEA"))
+        # MIME types de Office (pptx/docx/xlsx) passam de 50 caracteres; amplia a coluna.
+        db.session.execute(text("ALTER TABLE evidencias ALTER COLUMN tipo TYPE VARCHAR(255)"))
 
     if 'atividades_catalogo' in tabelas:
         existentes_at = {col['name'] for col in insp.get_columns('atividades_catalogo')}
