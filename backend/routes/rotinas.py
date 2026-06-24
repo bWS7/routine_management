@@ -51,8 +51,17 @@ def add_rotina_history(rotina, usuario_id, acao, observacao=None, status_anterio
 
 
 def allowed_file(filename):
-    extensoes = {'pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in extensoes
+    # Aceita qualquer tipo de documento, slide, planilha, imagem, etc.
+    # Bloqueia apenas executaveis/scripts por seguranca — os arquivos sao
+    # sempre servidos como download (Content-Disposition: attachment).
+    if '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    bloqueadas = {
+        'exe', 'msi', 'bat', 'cmd', 'com', 'scr', 'pif', 'sh', 'bash',
+        'ps1', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'jar', 'dll', 'app', 'apk',
+    }
+    return ext not in bloqueadas
 
 
 def get_periodo(tipo, referencia=None):
