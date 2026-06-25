@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.audit import log_audit, diff_payload
 from backend.models import Usuario, Rotina, HistoricoRotina, Evidencia, AuditLog
-from backend.constants import PERFIS_USUARIO
+from backend.constants import PERFIS_USUARIO, PERFIS_COMBINAVEIS
 from backend.extensions import db
 
 usuarios_bp = Blueprint('usuarios', __name__)
@@ -23,6 +23,40 @@ def get_current_user():
 
 def require_admin(u):
     return u.perfil == 'admin'
+
+
+def normalizar_perfis(data):
+    """Extrai e valida a lista de perfis do payload. Aceita `perfis` (lista,
+    novo formato) ou `perfil` (string, formato legado). Retorna (lista, erro)."""
+    if 'perfis' in data and data.get('perfis') is not None:
+        perfis = data.get('perfis')
+        if not isinstance(perfis, list):
+            perfis = [perfis]
+    elif data.get('perfil'):
+        perfis = [data.get('perfil')]
+    else:
+        perfis = []
+
+    # Remove vazios e duplicatas preservando a ordem (1º = principal)
+    limpa = []
+    for p in perfis:
+        if p and p not in limpa:
+            limpa.append(p)
+
+    if not limpa:
+        return None, 'Selecione ao menos um perfil'
+    if len(limpa) > 3:
+        return None, 'Máximo de 3 perfis por usuário'
+    for p in limpa:
+        if p not in PERFIS_USUARIO:
+            return None, 'Perfil inválido'
+
+    # Administrador e Superintendente são sempre perfil único. Só é permitido
+    # combinar perfis entre Gerente, Coordenador e Supervisor.
+    if len(limpa) > 1 and any(p not in PERFIS_COMBINAVEIS for p in limpa):
+        return None, 'Administrador e Superintendente não podem ser combinados com outros perfis'
+
+    return limpa, None
 
 
 def remove_uploaded_file(url):
@@ -82,26 +116,27 @@ def criar():
 
     data = request.get_json()
     email = data.get('email', '').strip().lower()
-    perfil = data.get('perfil')
 
-    if perfil not in PERFIS_USUARIO:
-        return jsonify({'erro': 'Perfil inválido'}), 400
+    perfis, erro = normalizar_perfis(data)
+    if erro:
+        return jsonify({'erro': erro}), 400
 
     if Usuario.query.filter_by(email=email).first():
         return jsonify({'erro': 'Email já cadastrado'}), 400
 
     # Validação: SUPERINTENDENTE requer supervisor obrigatoriamente
-    if perfil == 'sr' and not data.get('supervisor_id'):
+    if 'sr' in perfis and not data.get('supervisor_id'):
         return jsonify({'erro': 'Superintendente deve ter um Supervisor Responsável designado'}), 400
 
     u = Usuario(
         nome=data['nome'],
         email=email,
-        perfil=perfil,
+        perfil=perfis[0],
         regional_id=data.get('regional_id'),
         supervisor_id=data.get('supervisor_id'),
         status=data.get('status', 'ativo')
     )
+    u.set_perfis(perfis)
     u.set_senha(data.get('senha', '123456'))
     db.session.add(u)
     db.session.commit()
@@ -125,10 +160,11 @@ def atualizar(uid):
         u.nome = data['nome']
     if 'email' in data and require_admin(me):
         u.email = data['email'].strip().lower()
-    if 'perfil' in data and require_admin(me):
-        if data['perfil'] not in PERFIS_USUARIO:
-            return jsonify({'erro': 'Perfil inválido'}), 400
-        u.perfil = data['perfil']
+    if ('perfis' in data or 'perfil' in data) and require_admin(me):
+        perfis, erro = normalizar_perfis(data)
+        if erro:
+            return jsonify({'erro': erro}), 400
+        u.set_perfis(perfis)
     if 'regional_id' in data and require_admin(me):
         u.regional_id = data['regional_id']
     if 'supervisor_id' in data and require_admin(me):

@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 from backend.utils.dates import get_now_br
 from backend.extensions import db
 import bcrypt
+import json
 
 
 class Regional(db.Model):
@@ -51,7 +52,10 @@ class Usuario(db.Model):
     nome = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     senha_hash = db.Column(db.String(255), nullable=False)
-    perfil = db.Column(db.String(50), nullable=False)  # admin, sr, gv, cd, sp
+    perfil = db.Column(db.String(50), nullable=False)  # perfil PRINCIPAL: admin, sr, gv, cd, sp
+    # Lista JSON com TODOS os perfis do usuário (1 a 3). O primeiro é o principal
+    # (espelhado em `perfil`, mantido para a lógica de permissões existente).
+    perfis = db.Column(db.Text)
     regional_id = db.Column(db.Integer, db.ForeignKey('regionais.id'), nullable=True)
     supervisor_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     status = db.Column(db.String(20), default='ativo')  # ativo, inativo, bloqueado
@@ -67,12 +71,38 @@ class Usuario(db.Model):
     def check_senha(self, senha):
         return bcrypt.checkpw(senha.encode('utf-8'), self.senha_hash.encode('utf-8'))
 
+    @property
+    def perfis_list(self):
+        """Todos os perfis do usuário. Se `perfis` não estiver preenchido (dados
+        antigos), cai de volta para o perfil principal único."""
+        if self.perfis:
+            try:
+                vals = json.loads(self.perfis)
+                if isinstance(vals, list) and vals:
+                    return [p for p in vals if p]
+            except (ValueError, TypeError):
+                pass
+        return [self.perfil] if self.perfil else []
+
+    def set_perfis(self, lista):
+        """Define a lista de perfis (máx. 3, sem duplicatas). O primeiro vira o
+        perfil principal."""
+        limpa = []
+        for p in (lista or []):
+            if p and p not in limpa:
+                limpa.append(p)
+        limpa = limpa[:3]
+        self.perfis = json.dumps(limpa) if limpa else None
+        if limpa:
+            self.perfil = limpa[0]
+
     def to_dict(self):
         return {
             'id': self.id,
             'nome': self.nome,
             'email': self.email,
             'perfil': self.perfil,
+            'perfis': self.perfis_list,
             'regional_id': self.regional_id,
             'regional_nome': self.regional.nome if self.regional else None,
             'supervisor_id': self.supervisor_id,

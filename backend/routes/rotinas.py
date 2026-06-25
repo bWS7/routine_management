@@ -133,7 +133,10 @@ def gerar_rotinas():
 
     criadas = 0
     for usuario in usuarios:
-        cat_query = AtividadeCatalogo.query.filter_by(perfil=usuario.perfil, ativo=True)
+        cat_query = AtividadeCatalogo.query.filter(
+            AtividadeCatalogo.perfil.in_(usuario.perfis_list),
+            AtividadeCatalogo.ativo == True
+        )
         if periodicidade_filtro and periodicidade_filtro != 'todas':
             cat_query = cat_query.filter_by(periodicidade=periodicidade_filtro)
         
@@ -165,10 +168,13 @@ def ensure_rotinas_atuais(usuario, referencia=None):
     período atual (semanal/quinzenal/mensal/diária) para o usuário, conforme o
     catálogo do seu perfil. Chamado ao acessar as rotinas, sem necessidade de
     agendador externo."""
-    if not usuario or not usuario.perfil:
+    if not usuario or not usuario.perfis_list:
         return 0
     referencia = referencia or date.today()
-    atividades = AtividadeCatalogo.query.filter_by(perfil=usuario.perfil, ativo=True).all()
+    atividades = AtividadeCatalogo.query.filter(
+        AtividadeCatalogo.perfil.in_(usuario.perfis_list),
+        AtividadeCatalogo.ativo == True
+    ).all()
     criadas = 0
     for atividade in atividades:
         inicio, fim = get_periodo(atividade.periodicidade, referencia)

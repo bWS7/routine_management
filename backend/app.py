@@ -336,6 +336,16 @@ def _ensure_runtime_columns():
         if 'descricao' not in existentes_at:
             db.session.execute(text("ALTER TABLE atividades_catalogo ADD COLUMN descricao TEXT"))
 
+    if 'usuarios' in tabelas:
+        existentes_u = {col['name'] for col in insp.get_columns('usuarios')}
+        if 'perfis' not in existentes_u:
+            db.session.execute(text("ALTER TABLE usuarios ADD COLUMN perfis TEXT"))
+            # Backfill: usuários existentes recebem uma lista com seu perfil atual.
+            db.session.execute(text(
+                "UPDATE usuarios SET perfis = '[\"' || perfil || '\"]' "
+                "WHERE perfis IS NULL AND perfil IS NOT NULL"
+            ))
+
     db.session.commit()
 
     # Atualiza descrições do catálogo a partir do seed_data

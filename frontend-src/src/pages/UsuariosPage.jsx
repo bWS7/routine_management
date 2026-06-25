@@ -9,7 +9,7 @@ import { Input, Select } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
 import { PerfilBadge } from '../components/ui/Badge';
-import { PERFIL_LABELS } from '../utils/constants';
+import { PERFIL_LABELS, PERFIL_COLORS } from '../utils/constants';
 
 const STATUS_USUARIO_COLORS = {
   ativo:     'bg-green-50 text-green-700',
@@ -17,12 +17,17 @@ const STATUS_USUARIO_COLORS = {
   bloqueado: 'bg-red-50 text-red-700',
 };
 
+// Perfis que podem ser combinados (até 3). Administrador e Superintendente são
+// sempre perfil único e nunca entram em combinação.
+const PERFIS_COMBINAVEIS = ['gv', 'cd', 'sp'];
+const MAX_PERFIS = 3;
+
 function UsuarioModal({ usuario, regionais, usuarios, onClose, onSaved }) {
   const { toast } = useToast();
   const [form, setForm] = useState({
     nome: usuario?.nome || '',
     email: usuario?.email || '',
-    perfil: usuario?.perfil || 'gv',
+    perfis: (usuario?.perfis && usuario.perfis.length ? usuario.perfis : [usuario?.perfil || 'gv']),
     regional_id: usuario?.regional_id || '',
     supervisor_id: usuario?.supervisor_id || '',
     status: usuario?.status || 'ativo',
@@ -32,8 +37,31 @@ function UsuarioModal({ usuario, regionais, usuarios, onClose, onSaved }) {
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
+  // Alterna um perfil respeitando as regras: admin/sr são exclusivos (perfil
+  // único); gv/cd/sp podem ser combinados em até 3.
+  const togglePerfil = (codigo) => {
+    setForm(prev => {
+      const atual = prev.perfis;
+      const combinavel = PERFIS_COMBINAVEIS.includes(codigo);
+
+      // admin ou sr: sempre substitui tudo por ele mesmo (perfil único)
+      if (!combinavel) return { ...prev, perfis: [codigo] };
+
+      // clicou num combinável: se havia admin/sr selecionado, começa do zero
+      const base = atual.filter(p => PERFIS_COMBINAVEIS.includes(p));
+
+      if (base.includes(codigo)) {
+        const novo = base.filter(p => p !== codigo);
+        return { ...prev, perfis: novo.length ? novo : prev.perfis }; // nunca deixa vazio
+      }
+      if (base.length >= MAX_PERFIS) return prev; // limite de 3
+      return { ...prev, perfis: [...base, codigo] };
+    });
+  };
+
   const save = async () => {
     if (!form.nome || !form.email) { toast('Preencha nome e email', 'error'); return; }
+    if (!form.perfis.length) { toast('Selecione ao menos um perfil', 'error'); return; }
     setSaving(true);
     const payload = { ...form };
     if (!payload.senha) delete payload.senha;
@@ -60,12 +88,41 @@ function UsuarioModal({ usuario, regionais, usuarios, onClose, onSaved }) {
       </>}
     >
       <div className="space-y-4">
+        {/* Seleção de perfis (até 3 entre Gerente, Coordenador e Supervisor) */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">
+            Perfis<span className="text-red-500 ml-1 font-bold">*</span>
+            <span className="ml-2 text-xs font-normal text-gray-400">
+              Gerente, Coordenador e Supervisor podem ser combinados (até 3)
+            </span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(PERFIL_LABELS).map(([codigo, label]) => {
+              const selecionado = form.perfis.includes(codigo);
+              return (
+                <button
+                  key={codigo}
+                  type="button"
+                  onClick={() => togglePerfil(codigo)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    selecionado
+                      ? `${PERFIL_COLORS[codigo]} border-transparent ring-2 ring-offset-1 ring-primary-300`
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {form.perfis.length > 1 && (
+            <span className="text-xs text-gray-400">Perfil principal: {PERFIL_LABELS[form.perfis[0]]}</span>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="Nome Completo *" value={form.nome} onChange={e => set('nome', e.target.value)} />
           <Input label="Email *" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
-          <Select label="Perfil *" value={form.perfil} onChange={e => set('perfil', e.target.value)}>
-            {Object.entries(PERFIL_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </Select>
           <Select label="Regional" value={form.regional_id} onChange={e => set('regional_id', e.target.value)}>
             <option value="">Nenhuma</option>
             {regionais.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
@@ -169,7 +226,13 @@ export default function UsuariosPage() {
                   <Tr key={u.id}>
                     <Td className="font-semibold text-gray-800">{u.nome}</Td>
                     <Td className="text-gray-500 text-xs">{u.email}</Td>
-                    <Td><PerfilBadge perfil={u.perfil} label={PERFIL_LABELS[u.perfil] || u.perfil} /></Td>
+                    <Td>
+                      <div className="flex flex-wrap gap-1">
+                        {(u.perfis && u.perfis.length ? u.perfis : [u.perfil]).map(p => (
+                          <PerfilBadge key={p} perfil={p} label={PERFIL_LABELS[p] || p} />
+                        ))}
+                      </div>
+                    </Td>
                     <Td className="text-gray-500 text-sm">{regMap[u.regional_id] || '—'}</Td>
                     <Td>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_USUARIO_COLORS[u.status] || 'bg-gray-100 text-gray-600'}`}>

@@ -12,6 +12,10 @@ const SIZES = {
 
 export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   const overlayRef = useRef(null);
+  // Guarda onde o gesto do mouse COMEÇOU. Só fechamos no clique do backdrop
+  // se o press iniciou no próprio overlay — assim, selecionar texto dentro de
+  // um campo e soltar o mouse fora não fecha o modal (evitando perder os dados).
+  const pressStartedOnOverlay = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -35,7 +39,11 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
           transition={{ duration: 0.15 }}
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
           style={{ backgroundColor: 'rgba(17,24,39,0.45)', backdropFilter: 'blur(2px)' }}
-          onClick={e => { if (e.target === overlayRef.current) onClose?.(); }}
+          onMouseDown={e => { pressStartedOnOverlay.current = e.target === overlayRef.current; }}
+          onClick={e => {
+            if (e.target === overlayRef.current && pressStartedOnOverlay.current) onClose?.();
+            pressStartedOnOverlay.current = false;
+          }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 8 }}
