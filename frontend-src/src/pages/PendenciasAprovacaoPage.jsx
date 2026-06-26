@@ -183,6 +183,9 @@ function PendenciasAprovacaoPage() {
                     <p className="text-sm text-gray-600 mt-1">{rotina.usuario_nome}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <PeriodoBadge periodo={rotina.periodicidade} label={PERIODO_LABELS[rotina.periodicidade]} />
+                      {rotina.periodo_label && (
+                        <span className="text-xs font-semibold text-gray-700">{rotina.periodo_label}</span>
+                      )}
                       <span className="text-xs text-gray-500">{fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}</span>
                     </div>
                     {rotina.comentario && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{rotina.comentario}</p>}
@@ -242,6 +245,9 @@ function PendenciasAprovacaoPage() {
               </div>
               <div>
                 <p className="text-xs text-gray-400 font-medium mb-1">Período</p>
+                {selectedRotina.periodo_label && (
+                  <p className="text-sm text-gray-900 font-semibold">{selectedRotina.periodo_label}</p>
+                )}
                 <p className="text-sm text-gray-900">{fmtDate(selectedRotina.periodo_inicio)} → {fmtDate(selectedRotina.periodo_fim)}</p>
               </div>
               <div>

@@ -320,6 +320,9 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
             </div>
             <div>
               <div className="text-xs font-medium text-gray-400 mb-1">Período</div>
+              {rotina.periodo_label && (
+                <div className="text-xs font-semibold text-gray-800">{rotina.periodo_label}</div>
+              )}
               <div className="text-xs text-gray-700">{fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}</div>
             </div>
             <div>

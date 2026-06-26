@@ -184,6 +184,9 @@ function RelatorioRow({ rotina, onView }) {
           <PeriodoBadge periodo={rotina.periodicidade} label={PERIODO_LABELS[rotina.periodicidade]} />
         </td>
         <td className="px-4 py-3 text-xs text-gray-500">
+          {rotina.periodo_label && (
+            <div className="font-semibold text-gray-700">{rotina.periodo_label}</div>
+          )}
           {fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}
         </td>
         <td className="px-4 py-3">

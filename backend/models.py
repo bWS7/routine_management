@@ -4,6 +4,18 @@ from backend.extensions import db
 import bcrypt
 import json
 
+# Folga (em dias) concedida após o fim do período para concluir a rotina,
+# conforme a periodicidade. Periodicidades não listadas não recebem folga.
+GRACE_DAYS_BY_PERIODICIDADE = {
+    'semanal': 2,  # semana (seg–dom) + 2 dias → até a terça seguinte
+    'mensal': 2,   # mês inteiro + 2 dias → ex.: Julho até 02/08
+}
+
+MESES_PT = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+]
+
 
 class Regional(db.Model):
     __tablename__ = 'regionais'
@@ -182,10 +194,40 @@ class Rotina(db.Model):
 
     @property
     def prazo_limite(self):
-        # O prazo da rotina é o fim do seu período (dia/semana/quinzena/mês).
-        # A atividade só é considerada vencida APÓS o término do período — uma
-        # rotina mensal (ex.: 01/06 a 30/06) não vence no meio do mês.
-        return self.periodo_fim or self.periodo_inicio
+        # O prazo da rotina é o fim do seu período (dia/semana/quinzena/mês),
+        # acrescido de uma folga de conclusão conforme a periodicidade. A
+        # atividade só é considerada vencida APÓS o término do período + folga —
+        # uma rotina semanal (seg a dom) pode ser concluída até a terça seguinte.
+        fim = self.periodo_fim or self.periodo_inicio
+        if not fim:
+            return None
+        periodicidade = self.periodicidade or (self.atividade.periodicidade if self.atividade else None)
+        folga = GRACE_DAYS_BY_PERIODICIDADE.get(periodicidade, 0)
+        return fim + timedelta(days=folga) if folga else fim
+
+    @property
+    def periodo_label(self):
+        """Rótulo legível do período de referência da rotina, p.ex.:
+        'Semana 2 - Julho/2026' (semanal), 'Julho/2026' (mensal),
+        '1ª Quinzena - Julho/2026' (quinzenal) ou '15/07/2026' (diária)."""
+        inicio = self.periodo_inicio
+        if not inicio:
+            return None
+        periodicidade = self.periodicidade or (self.atividade.periodicidade if self.atividade else None)
+
+        if periodicidade == 'semanal':
+            # Âncora na quinta-feira (ISO): a semana seg–dom pertence ao mês/ano
+            # da sua quinta-feira, e o número é a sua posição nesse mês.
+            quinta = inicio + timedelta(days=3)
+            semana = (quinta.day - 1) // 7 + 1
+            return f"Semana {semana} - {MESES_PT[quinta.month - 1]}/{quinta.year}"
+        if periodicidade == 'quinzenal':
+            quinzena = 1 if inicio.day <= 15 else 2
+            return f"{quinzena}ª Quinzena - {MESES_PT[inicio.month - 1]}/{inicio.year}"
+        if periodicidade == 'diaria':
+            return inicio.strftime('%d/%m/%Y')
+        # mensal (e demais): apenas Mês/Ano
+        return f"{MESES_PT[inicio.month - 1]}/{inicio.year}"
 
     def to_dict(self):
         prazo_limite = self.prazo_limite
@@ -202,6 +244,7 @@ class Rotina(db.Model):
             'perfil': self.atividade.perfil if self.atividade else None,
             'periodo_inicio': self.periodo_inicio.isoformat() if self.periodo_inicio else None,
             'periodo_fim': self.periodo_fim.isoformat() if self.periodo_fim else None,
+            'periodo_label': self.periodo_label,
             'prazo_limite': prazo_limite.isoformat() if prazo_limite else None,
             'periodicidade': self.periodicidade,
             'status': self.status,

@@ -65,6 +65,9 @@ function RotinaCard({ rotina, onClick }) {
           </div>
         </div>
         <div className="shrink-0 text-right min-w-[110px]">
+          {rotina.periodo_label && (
+            <div className="text-xs font-semibold text-gray-700">{rotina.periodo_label}</div>
+          )}
           <div className="text-xs text-gray-400">{fmtDate(rotina.periodo_inicio)} → {fmtDate(rotina.periodo_fim)}</div>
           {rotina.data_conclusao && (
             <div className="text-xs text-success-dark mt-1">✓ {fmtDatetime(rotina.data_conclusao)}</div>

@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 from backend.audit import log_audit
 from backend.utils.dates import get_now_br
 from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog
+from backend.constants import atividade_requer_aprovacao
 from backend.extensions import db
 from datetime import date, timedelta, datetime, timezone
 from dateutil.relativedelta import relativedelta
@@ -284,8 +285,10 @@ def atualizar(rid):
         r.status = data['status']
         if data['status'] == 'concluida' and not r.data_conclusao:
             r.data_conclusao = get_now_br()
-            # Definir status de aprovação como pendente quando a atividade é concluída
-            r.status_aprovacao = 'pendente'
+            # Atividades isentas (ex.: "Checklist de Abertura do Stand") já são
+            # finalizadas na conclusão; as demais aguardam aprovação do Superintendente.
+            nome_atividade = r.atividade.nome if r.atividade else None
+            r.status_aprovacao = 'pendente' if atividade_requer_aprovacao(nome_atividade) else 'aprovada'
         elif data['status'] != 'concluida':
             r.data_conclusao = None
             # Se o status muda de concluída para outra coisa, resetar o status de aprovação

@@ -34,8 +34,19 @@ function UsuarioModal({ usuario, regionais, usuarios, onClose, onSaved }) {
     senha: '',
   });
   const [saving, setSaving] = useState(false);
+  const [mostrarSenha, setMostrarSenha] = useState(false);
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  // Gera uma senha temporária legível (sem caracteres ambíguos) para o admin
+  // repassar ao usuário.
+  const gerarSenha = () => {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let s = '';
+    for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    set('senha', s);
+    setMostrarSenha(true);
+  };
 
   // Alterna um perfil respeitando as regras: admin/sr são exclusivos (perfil
   // único); gv/cd/sp podem ser combinados em até 3.
@@ -139,10 +150,28 @@ function UsuarioModal({ usuario, regionais, usuarios, onClose, onSaved }) {
             <option value="bloqueado">Bloqueado</option>
           </Select>
         </div>
-        {!usuario && (
-          <Input label="Senha Inicial" type="password" placeholder="Padrão: 123456"
-            value={form.senha} onChange={e => set('senha', e.target.value)} />
-        )}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Input
+                label={usuario ? 'Redefinir Senha' : 'Senha Inicial'}
+                type={mostrarSenha ? 'text' : 'password'}
+                placeholder={usuario ? 'Deixe em branco para manter a senha atual' : 'Padrão: 123456'}
+                value={form.senha}
+                onChange={e => set('senha', e.target.value)}
+              />
+            </div>
+            <Button type="button" variant="secondary" onClick={() => setMostrarSenha(v => !v)}>
+              {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={gerarSenha}>Gerar</Button>
+          </div>
+          {usuario && form.senha && (
+            <span className="text-xs text-amber-600">
+              A senha será redefinida para <strong>{form.senha}</strong> ao salvar — anote e repasse ao usuário.
+            </span>
+          )}
+        </div>
       </div>
     </Modal>
   );
