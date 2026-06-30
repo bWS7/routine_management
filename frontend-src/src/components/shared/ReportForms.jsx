@@ -1,3 +1,4 @@
+import { useRef, useLayoutEffect, useCallback } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Input, Textarea, Select } from '../ui/Input';
 import { CHECKLIST_STAND_ITENS, emptyChecklistEmpreendimento,
@@ -17,6 +18,33 @@ const STATUS_ACAO = ['Aberto', 'Em andamento', 'Concluído'];
 const SIM_NAO = ['Sim', 'Não'];
 const TIPOS_APOIO = ['Treinamento', 'Acompanhamento em campo', 'Geração de leads', 'Apoio comercial', 'Outro'];
 const TIPOS_AGENDA = ['Parceria', 'Visita técnica', 'Evento', 'Treinamento', 'Outro'];
+
+// Célula de texto que cresce para baixo conforme o usuário escreve (quebra de linha).
+function AutoTextareaCell({ className = '', value, onChange, ...props }) {
+  const ref = useRef(null);
+  const grow = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+  useLayoutEffect(() => {
+    grow();
+    if (typeof document !== 'undefined' && document.fonts?.status !== 'loaded') {
+      document.fonts?.ready?.then(grow);
+    }
+  }, [value, grow]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      onChange={(e) => { onChange?.(e); grow(); }}
+      className={`${className} block resize-none overflow-hidden align-top`}
+      {...props}
+    />
+  );
+}
 
 function SectionTitle({ number, title }) {
   return (
@@ -63,6 +91,12 @@ function DynamicTable({ columns, rows, onAdd, onRemove, onChange, readOnly, addL
                           <option key={o} value={o}>{o || c.placeholderOption}</option>
                         ))}
                       </select>
+                    ) : (!c.type || c.type === 'text') && !c.list ? (
+                      <AutoTextareaCell
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary-400 disabled:bg-gray-50"
+                        value={row[c.key] || ''} onChange={e => onChange(i, c.key, e.target.value)}
+                        placeholder={c.placeholder || c.label} disabled={readOnly} required={!optional}
+                      />
                     ) : (
                       <input
                         type={c.type || 'text'}
@@ -609,7 +643,7 @@ export function FormChecklistStand({ form, set, setList, addItem, removeItem, re
                 <td className="pr-2 py-1.5 text-gray-400 font-medium">Observação</td>
                 {emps.map((e, i) => (
                   <td key={i} className="pr-2 py-1.5">
-                    <input className={cellClass} value={e.observacoes || ''} placeholder="Observação"
+                    <AutoTextareaCell className={cellClass} value={e.observacoes || ''} placeholder="Observação"
                       onChange={ev => setList('empreendimentos', i, 'observacoes', ev.target.value)} disabled={readOnly} />
                   </td>
                 ))}

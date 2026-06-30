@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useRef, useLayoutEffect, useCallback } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 export const Input = forwardRef(function Input({ label, error, className = '', ...props }, ref) {
@@ -27,7 +27,34 @@ export const Input = forwardRef(function Input({ label, error, className = '', .
   );
 });
 
-export const Textarea = forwardRef(function Textarea({ label, error, className = '', ...props }, ref) {
+export const Textarea = forwardRef(function Textarea({ label, error, className = '', onChange, value, ...props }, ref) {
+  const innerRef = useRef(null);
+
+  // Combina o ref interno (para medir a altura) com o ref encaminhado.
+  const setRefs = useCallback((node) => {
+    innerRef.current = node;
+    if (typeof ref === 'function') ref(node);
+    else if (ref) ref.current = node;
+  }, [ref]);
+
+  // Cresce o campo para caber todo o texto digitado (quebra a linha para baixo).
+  const autoGrow = useCallback(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  // Reajusta quando o valor muda externamente (carregar relatório, reset, etc.).
+  // Recalcula também após o carregamento das fontes, pois a altura depende das
+  // métricas da fonte final (evita texto cortado ao abrir um relatório salvo).
+  useLayoutEffect(() => {
+    autoGrow();
+    if (typeof document !== 'undefined' && document.fonts?.status !== 'loaded') {
+      document.fonts?.ready?.then(autoGrow);
+    }
+  }, [value, autoGrow]);
+
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
@@ -37,9 +64,11 @@ export const Textarea = forwardRef(function Textarea({ label, error, className =
         </label>
       )}
       <textarea
-        ref={ref}
+        ref={setRefs}
+        value={value}
+        onChange={(e) => { onChange?.(e); autoGrow(); }}
         className={`
-          w-full px-3 py-2.5 text-sm text-gray-900 bg-white border rounded-lg resize-none
+          w-full px-3 py-2.5 text-sm text-gray-900 bg-white border rounded-lg resize-none overflow-hidden
           placeholder-gray-400 transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-400
           disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed
