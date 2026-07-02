@@ -293,15 +293,15 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
 
   const save = async () => {
     if (isOverdue && status !== 'nao_realizada') {
-      toast('Atividade vencida. Registre como Não Realizada e preencha o Plano da Semana.', 'error');
+      toast('Atividade vencida. Registre como Não Realizada e preencha o Plano de Ação.', 'error');
       return;
     }
     if (!comentario || !comentario.trim()) {
-      toast('O comentário é obrigatório.', 'error');
+      toast(planoObrigatorio ? 'A justificativa é obrigatória.' : 'O comentário é obrigatório.', 'error');
       return;
     }
     if (planoObrigatorio && !planoSemana.trim()) {
-      toast('O Plano da Semana é obrigatório quando a atividade não foi realizada.', 'error');
+      toast('O Plano de Ação é obrigatório quando a atividade não foi realizada.', 'error');
       return;
     }
     if (status === 'concluida' && (!rotina?.evidencias || rotina.evidencias.length === 0)) {
@@ -366,7 +366,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
           {isOverdue && (
             <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl text-sm text-red-700 border border-red-200">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-              <span>Atividade vencida. Registre como Não Realizada e preencha o Plano da Semana. O relatório continua disponível para preenchimento.</span>
+              <span>Atividade vencida. Registre como Não Realizada e preencha o Plano de Ação. O relatório continua disponível para preenchimento.</span>
             </div>
           )}
           {/* Formulário obrigatório alert */}
@@ -459,10 +459,11 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
             <option value="nao_realizada">Não Realizada</option>
           </Select>
 
-          <Textarea label="Comentário" value={comentario} onChange={e => setComentario(e.target.value)}
-            rows={2} placeholder="Observações sobre a execução..." disabled={!(canFill || canRegisterOverdue)} required />
+          <Textarea label={planoObrigatorio ? 'Justificativa' : 'Comentário'} value={comentario} onChange={e => setComentario(e.target.value)}
+            rows={2} placeholder={planoObrigatorio ? 'Justifique por que a atividade não foi realizada...' : 'Observações sobre a execução...'}
+            disabled={!(canFill || canRegisterOverdue)} required />
 
-          <Textarea label="Plano da Semana" value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
+          <Textarea label={planoObrigatorio ? 'Plano de Ação' : 'Plano da Semana'} value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
             rows={3} placeholder={planoObrigatorio ? 'Obrigatório: descreva o plano de ação para a atividade não realizada...' : 'Registre o plano da semana...'}
             disabled={!(canFill || canRegisterOverdue)} required={planoObrigatorio} />
 
