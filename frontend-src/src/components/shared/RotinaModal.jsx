@@ -167,7 +167,10 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
       
       // Only set form fields if it's the initial load
       if (!onlyMetadata) {
-        setStatus(d.status);
+        // Atividade obrigatória vencida (pendência) já entra como "Não Realizada":
+        // o colaborador só precisa registrar justificativa e plano de ação.
+        const vencidaPendente = d.pendente_prazo && ['nao_iniciada', 'em_andamento'].includes(d.status);
+        setStatus(vencidaPendente ? 'nao_realizada' : d.status);
         setComentario(d.comentario || '');
         setJustificativa(d.justificativa || '');
         setAcaoCorretiva(d.acao_corretiva || '');
@@ -189,16 +192,18 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
   useEffect(() => { loadRotina(); }, [loadRotina]);
 
   const isOverdue = !!rotina?.pendente_prazo;
+  // Pendência: atividade obrigatória vencida (qualquer status) ou já marcada como
+  // "Não Realizada". Nesse caso é tratada como não realizada — sem relatório,
+  // sem evidência obrigatória, apenas justificativa e plano de ação.
+  const isPendencia = !!rotina?.vencida || status === 'nao_realizada';
   // Apenas o admin e o próprio dono podem preencher/editar. O Superintendente
   // pode visualizar e aprovar, mas nunca preencher o relatório de terceiros.
   const canEdit = currentUser?.perfil === 'admin' ||
                   rotina?.usuario_id === currentUser?.id;
   const canFill = canEdit && !isOverdue;
   const canRegisterOverdue = canEdit && isOverdue;
-  // Seção 1: o status não deve impedir o preenchimento do relatório. Atividades
-  // com status "Não Iniciada" / "Não Realizada" continuam com o relatório editável
-  // mesmo vencidas; apenas "Em Andamento" vencida permanece bloqueada.
-  const canFillReport = canEdit && (!isOverdue || ['nao_iniciada', 'nao_realizada'].includes(status));
+  // Em pendência (não realizada) o relatório não pode ser preenchido.
+  const canFillReport = canEdit && !isPendencia;
 
   const planoObrigatorio = status === 'nao_realizada';
 
@@ -276,14 +281,14 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
         </div>
       ) : rotina && (
         <div className="space-y-5">
-          {isOverdue && (
+          {isPendencia && (
             <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl text-sm text-red-700 border border-red-200">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-              <span>Atividade vencida. Registre como nao realizada com justificativa e plano de acao. O relatorio continua disponivel para preenchimento.</span>
+              <span>Atividade vencida, registrada como Não Realizada. Preencha a justificativa e o plano de ação.</span>
             </div>
           )}
           {/* Formulário obrigatório alert */}
-          {!rotina.formulario_preenchido && !isOverdue && (
+          {!rotina.formulario_preenchido && !isPendencia && (
             <div className="flex items-start gap-2 p-3 bg-warning-light rounded-xl text-sm text-warning-dark border border-yellow-200">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
               <span>O <strong>Relatório Comercial</strong> é obrigatório. Preencha-o antes de concluir a atividade.</span>
@@ -297,7 +302,7 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
           )}
 
           {/* Evidência obrigatória */}
-          {(!rotina.evidencias || rotina.evidencias.length === 0) && !isOverdue && (
+          {(!rotina.evidencias || rotina.evidencias.length === 0) && !isPendencia && (
             <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-xl text-sm text-orange-700 border border-orange-200">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span><strong>Evidência obrigatória.</strong> Anexe pelo menos um arquivo antes de concluir a atividade.</span>
@@ -335,10 +340,10 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
             </div>
           </div>
 
-          <Select label="Status" value={status} onChange={e => setStatus(e.target.value)} disabled={!canEdit}>
-            <option value="nao_iniciada" disabled={isOverdue}>Não Iniciada</option>
-            <option value="em_andamento" disabled={isOverdue}>Em Andamento</option>
-            <option value="concluida" disabled={isOverdue}>Concluída</option>
+          <Select label="Status" value={status} onChange={e => setStatus(e.target.value)} disabled={!canEdit || isPendencia}>
+            <option value="nao_iniciada" disabled={isPendencia}>Não Iniciada</option>
+            <option value="em_andamento" disabled={isPendencia}>Em Andamento</option>
+            <option value="concluida" disabled={isPendencia}>Concluída</option>
             <option value="nao_realizada">Não Realizada</option>
           </Select>
 
@@ -353,7 +358,9 @@ export default function RotinaModal({ rotinaId, onClose, onSaved }) {
           <div className="border-t border-gray-100 pt-5">
             <div className="flex items-center gap-2 mb-3">
               <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Evidências e Anexos</h4>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">Obrigatório</span>
+              {!isPendencia && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">Obrigatório</span>
+              )}
             </div>
             {status === 'concluida' && (!rotina.evidencias || rotina.evidencias.length === 0) && !isOverdue && (
               <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">

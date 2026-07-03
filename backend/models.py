@@ -274,6 +274,14 @@ class Rotina(db.Model):
                 and prazo_limite
                 and prazo_limite < datetime.now(timezone.utc).date()
             ) if self.atividade else False,
+            # Vencida = obrigatória cujo prazo já passou (qualquer status). Usada
+            # para tratar a atividade como pendência mesmo já marcada "não realizada".
+            'vencida': bool(
+                self.atividade
+                and self.atividade.obrigatoria
+                and prazo_limite
+                and prazo_limite < datetime.now(timezone.utc).date()
+            ) if self.atividade else False,
             'evidencias': [e.to_dict() for e in self.evidencias],
             'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None,
             'atualizado_em': self.atualizado_em.replace(tzinfo=timezone.utc).isoformat() if self.atualizado_em else None

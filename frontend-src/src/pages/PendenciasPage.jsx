@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, CheckCircle, Edit } from 'lucide-react';
+import { AlertCircle, CheckCircle, Edit, Check } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { Card } from '../components/ui/Card';
 import { Table, Thead, Th, Tbody, Tr, Td } from '../components/ui/Table';
@@ -72,8 +72,21 @@ export default function PendenciasPage() {
                     </div>
                   </Td>
                   <Td className="text-error font-semibold text-xs">{fmtDate(r.prazo_limite || r.periodo_fim)}</Td>
-                  <Td><StatusBadge status={r.status} label={STATUS_LABELS[r.status]} /></Td>
-                  <Td className="text-xs text-gray-500 max-w-[200px] truncate">{r.justificativa || '—'}</Td>
+                  <Td>
+                    <div className="flex items-center gap-1.5">
+                      <StatusBadge status="nao_realizada" label={STATUS_LABELS['nao_realizada']} />
+                      {r.justificada && (
+                        <span title="Justificada" className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 text-green-600">
+                          <Check size={13} strokeWidth={3} />
+                        </span>
+                      )}
+                    </div>
+                  </Td>
+                  <Td className="text-xs max-w-[220px]">
+                    {r.justificada
+                      ? <span className="text-gray-600 line-clamp-2">{r.comentario}</span>
+                      : <span className="text-gray-400">—</span>}
+                  </Td>
                   <Td>
                     <button
                       onClick={() => setOpenId(r.id)}

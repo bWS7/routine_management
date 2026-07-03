@@ -113,6 +113,41 @@ def rotina_vencida_pendente(rotina):
     )
 
 
+def rotina_vencida(rotina):
+    """Atividade obrigatória cujo prazo (com folga) já passou — independente do status."""
+    prazo_limite = rotina.prazo_limite
+    return bool(
+        rotina.atividade
+        and rotina.atividade.obrigatoria
+        and prazo_limite
+        and prazo_limite < date.today()
+    )
+
+
+def rotina_justificada(rotina):
+    """Pendência já justificada: justificativa (comentario) e plano de ação (plano_semana) preenchidos."""
+    return bool((rotina.comentario or '').strip() and (rotina.plano_semana or '').strip())
+
+
+def marcar_vencidas_nao_realizadas(rotinas, ator_id=None):
+    """Marca automaticamente como 'nao_realizada' as atividades obrigatórias vencidas
+    que ainda estão 'nao_iniciada'/'em_andamento'. Idempotente (só altera o que precisa)."""
+    mudou = False
+    for r in rotinas:
+        if r.status in ('nao_iniciada', 'em_andamento') and rotina_vencida(r):
+            anterior = r.status
+            r.status = 'nao_realizada'
+            add_rotina_history(
+                r, ator_id or r.usuario_id, 'mudanca_status',
+                observacao='Marcada automaticamente como Não Realizada (prazo vencido).',
+                status_anterior=anterior, status_novo='nao_realizada'
+            )
+            mudou = True
+    if mudou:
+        db.session.commit()
+    return mudou
+
+
 @rotinas_bp.route('/gerar', methods=['POST'])
 @jwt_required()
 def gerar_rotinas():
@@ -272,7 +307,7 @@ def atualizar(rid):
 
     data = request.get_json()
     status_anterior = r.status
-    vencida_pendente = rotina_vencida_pendente(r)
+    vencida_pendente = rotina_vencida(r)
 
     if 'status' in data:
         if vencida_pendente and data['status'] != 'nao_realizada':
@@ -323,8 +358,8 @@ def atualizar(rid):
     if vencida_pendente and r.status != 'nao_realizada':
         return jsonify({'erro': 'Atividade vencida. Nao e possivel preencher ou concluir apos o prazo.'}), 400
 
-    if r.status == 'nao_realizada' and (not r.justificativa or not r.acao_corretiva):
-        return jsonify({'erro': 'Justificativa e plano de ação são obrigatórios para atividades não realizadas'}), 400
+    if r.status == 'nao_realizada' and (not r.comentario or not r.plano_semana):
+        return jsonify({'erro': 'Justificativa e Plano de Ação são obrigatórios para atividades não realizadas'}), 400
 
     if status_anterior != r.status:
         add_rotina_history(
@@ -741,7 +776,7 @@ def pendencias():
     me = get_current_user()
 
     query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).join(AtividadeCatalogo).filter(
-        Rotina.status.in_(['nao_iniciada', 'em_andamento']),
+        Rotina.status.in_(['nao_iniciada', 'em_andamento', 'nao_realizada']),
         AtividadeCatalogo.obrigatoria == True
     )
 
@@ -750,9 +785,23 @@ def pendencias():
     elif me.perfil not in ['admin']:
         query = query.filter(Rotina.usuario_id == me.id)
 
-    rotinas = [r for r in query.all() if rotina_vencida_pendente(r)]
-    rotinas.sort(key=lambda r: r.prazo_limite or r.periodo_fim)
-    return jsonify([r.to_dict() for r in rotinas])
+    todas = query.all()
+    # Atividades vencidas ainda não tratadas passam automaticamente a "Não Realizada"
+    # (histórico atribuído ao próprio dono da rotina).
+    marcar_vencidas_nao_realizadas(todas)
+
+    # Pendência = obrigatória não realizada (ou ainda vencida por segurança). As
+    # justificadas permanecem na lista, apenas marcadas como tal.
+    rotinas = [r for r in todas if r.status == 'nao_realizada' or rotina_vencida(r)]
+    # Não justificadas primeiro; depois por prazo.
+    rotinas.sort(key=lambda r: (rotina_justificada(r), r.prazo_limite or r.periodo_fim))
+
+    resultado = []
+    for r in rotinas:
+        d = r.to_dict()
+        d['justificada'] = rotina_justificada(r)
+        resultado.append(d)
+    return jsonify(resultado)
 
 
 @rotinas_bp.route('/<int:rid>/aprovar', methods=['POST'])
@@ -956,11 +1005,10 @@ def salvar_formulario(rid):
     r = Rotina.query.get_or_404(rid)
     if not can_edit_rotina(me, r):
         return jsonify({'erro': 'Acesso negado'}), 403
-    # Secao 1: o status nao deve impedir o preenchimento do relatorio.
-    # Atividades com status 'nao_iniciada' ou 'nao_realizada' permanecem editaveis
-    # mesmo apos o prazo; o bloqueio por vencimento so se aplica a 'em_andamento'.
-    if rotina_vencida_pendente(r) and r.status not in ('nao_iniciada', 'nao_realizada'):
-        return jsonify({'erro': 'Atividade vencida. Nao e possivel preencher relatorio apos o prazo.'}), 400
+    # Em pendência (obrigatória vencida ou já "Não Realizada") o relatório não pode
+    # ser preenchido — a atividade só recebe justificativa e plano de ação.
+    if rotina_vencida(r) or r.status == 'nao_realizada':
+        return jsonify({'erro': 'Atividade não realizada (pendência). Não é possível preencher o relatório.'}), 400
 
     data = request.get_json() or {}
     formulario = data.get('formulario', {})
