@@ -102,6 +102,30 @@ def filtro_periodo_atual(model, referencia):
     return or_(*filtros)
 
 
+def filtro_carry_over(model, referencia):
+    """Filtro (OR) das atividades obrigatórias de períodos anteriores ainda dentro
+    da folga de prazo (ex.: semanal = +2 dias) e em aberto — para continuarem
+    visíveis na aba do período corrente em vez de sumirem na virada do período.
+    Só se aplica quando se está vendo o período que contém a data de hoje."""
+    from sqlalchemy import or_, and_
+
+    hoje = date.today()
+    filtros = []
+    for periodicidade, grace in GRACE_DAYS_BY_PERIODICIDADE.items():
+        if not grace:
+            continue
+        inicio, fim = get_periodo(periodicidade, referencia)
+        if not (inicio <= hoje <= fim):
+            continue
+        filtros.append(and_(
+            model.periodicidade == periodicidade,
+            model.periodo_fim < inicio,
+            model.periodo_fim >= hoje - timedelta(days=grace),
+            model.status.in_(['nao_iniciada', 'em_andamento'])
+        ))
+    return or_(*filtros) if filtros else None
+
+
 def rotina_vencida_pendente(rotina):
     prazo_limite = rotina.prazo_limite
     return (
@@ -250,34 +274,28 @@ def listar():
 
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
+    from sqlalchemy import or_, and_
+
+    # Folga de prazo: atividades do período anterior ainda dentro da folga (ex.:
+    # semanal = +2 dias → 9 dias no total) e em aberto continuam visíveis na aba
+    # do período corrente, em vez de sumirem na virada do período.
+    carry = filtro_carry_over(Rotina, referencia)
+
     if periodo == 'todas':
-        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            filtro_periodo_atual(Rotina, referencia)
-        )
+        base = filtro_periodo_atual(Rotina, referencia)
     else:
-        from sqlalchemy import or_, and_
         inicio, fim = get_periodo(periodo, referencia)
-        hoje = date.today()
         base = and_(
             Rotina.periodo_inicio >= inicio,
             Rotina.periodo_fim <= fim,
             Rotina.periodicidade == periodo
         )
-        # Folga de prazo: enquanto uma atividade obrigatória do período anterior
-        # ainda está dentro da folga (ex.: semanal = +2 dias → 9 dias no total) e
-        # segue em aberto, ela continua aparecendo na aba do período corrente,
-        # mesmo já tendo virado a semana. Só quando se está vendo o período atual.
-        grace = GRACE_DAYS_BY_PERIODICIDADE.get(periodo, 0)
-        if grace and inicio <= hoje <= fim:
-            carry = and_(
-                Rotina.periodicidade == periodo,
-                Rotina.periodo_fim < inicio,
-                Rotina.periodo_fim >= hoje - timedelta(days=grace),
-                Rotina.status.in_(['nao_iniciada', 'em_andamento'])
-            )
-            query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(or_(base, carry))
-        else:
-            query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(base)
+        # No modo por periodicidade, restringe o carry-over à periodicidade vista.
+        if carry is not None:
+            carry = and_(carry, Rotina.periodicidade == periodo)
+
+    cond = or_(base, carry) if carry is not None else base
+    query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(cond)
 
     # Visibilidade por hierarquia
     if me.perfil == 'admin':
