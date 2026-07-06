@@ -8,7 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from backend.audit import log_audit
 from backend.utils.dates import get_now_br
-from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog
+from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog, GRACE_DAYS_BY_PERIODICIDADE
 from backend.constants import atividade_requer_aprovacao
 from backend.extensions import db
 from datetime import date, timedelta, datetime, timezone
@@ -255,12 +255,29 @@ def listar():
             filtro_periodo_atual(Rotina, referencia)
         )
     else:
+        from sqlalchemy import or_, and_
         inicio, fim = get_periodo(periodo, referencia)
-        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+        hoje = date.today()
+        base = and_(
             Rotina.periodo_inicio >= inicio,
             Rotina.periodo_fim <= fim,
             Rotina.periodicidade == periodo
         )
+        # Folga de prazo: enquanto uma atividade obrigatória do período anterior
+        # ainda está dentro da folga (ex.: semanal = +2 dias → 9 dias no total) e
+        # segue em aberto, ela continua aparecendo na aba do período corrente,
+        # mesmo já tendo virado a semana. Só quando se está vendo o período atual.
+        grace = GRACE_DAYS_BY_PERIODICIDADE.get(periodo, 0)
+        if grace and inicio <= hoje <= fim:
+            carry = and_(
+                Rotina.periodicidade == periodo,
+                Rotina.periodo_fim < inicio,
+                Rotina.periodo_fim >= hoje - timedelta(days=grace),
+                Rotina.status.in_(['nao_iniciada', 'em_andamento'])
+            )
+            query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(or_(base, carry))
+        else:
+            query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(base)
 
     # Visibilidade por hierarquia
     if me.perfil == 'admin':
