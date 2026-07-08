@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Timer, Check, X, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { PageSpinner, EmptyState } from '../components/ui/Spinner';
+import Pagination, { usePagination } from '../components/ui/Pagination';
 import { fmtDatetime } from '../utils/constants';
+
+const DETALHES_PER_PAGE = 15;
 
 function fmtDuracao(segundos) {
   if (segundos == null) return '—';
@@ -35,7 +38,11 @@ function StatBox({ label, value, sub, color = 'text-gray-900' }) {
 
 function AprovadorCard({ info, registros }) {
   const [expanded, setExpanded] = useState(false);
-  const detalhes = registros.filter(r => r.aprovador_id === info.aprovador_id);
+  const detalhes = useMemo(
+    () => registros.filter(r => r.aprovador_id === info.aprovador_id),
+    [registros, info.aprovador_id]
+  );
+  const { page, setPage, pages, total, slice } = usePagination(detalhes, DETALHES_PER_PAGE, info.aprovador_id);
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-card overflow-hidden">
@@ -105,7 +112,7 @@ function AprovadorCard({ info, registros }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {detalhes.map(d => (
+                  {slice.map(d => (
                     <tr key={d.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-2.5 text-gray-700 font-medium max-w-[200px] truncate">{d.rotina_nome || `#${d.rotina_id}`}</td>
                       <td className="px-4 py-2.5">
@@ -133,6 +140,7 @@ function AprovadorCard({ info, registros }) {
               </table>
             </div>
           )}
+          <Pagination page={page} pages={pages} total={total} perPage={DETALHES_PER_PAGE} onChange={setPage} />
         </div>
       )}
     </div>

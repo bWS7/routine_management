@@ -9,7 +9,10 @@ import { Input, Select } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
 import { PerfilBadge } from '../components/ui/Badge';
+import Pagination, { usePagination } from '../components/ui/Pagination';
 import { PERFIL_LABELS, PERFIL_COLORS } from '../utils/constants';
+
+const USUARIOS_PER_PAGE = 20;
 
 const STATUS_USUARIO_COLORS = {
   ativo:     'bg-green-50 text-green-700',
@@ -203,6 +206,8 @@ export default function UsuariosPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const { page, setPage, pages, total, slice } = usePagination(usuarios, USUARIOS_PER_PAGE, usuarios);
+
   const toggleStatus = async (u) => {
     const novoStatus = u.status === 'ativo' ? 'inativo' : 'ativo';
     const r = await apiFetch(`/api/usuarios/${u.id}`, { method: 'PUT', body: JSON.stringify({ status: novoStatus }) });
@@ -251,7 +256,7 @@ export default function UsuariosPage() {
                 </tr>
               </Thead>
               <Tbody>
-                {usuarios.map(u => (
+                {slice.map(u => (
                   <Tr key={u.id}>
                     <Td className="font-semibold text-gray-800">{u.nome}</Td>
                     <Td className="text-gray-500 text-xs">{u.email}</Td>
@@ -286,6 +291,7 @@ export default function UsuariosPage() {
               </Tbody>
             </Table>
           )}
+          <Pagination page={page} pages={pages} total={total} perPage={USUARIOS_PER_PAGE} onChange={setPage} />
         </Card>
       )}
 

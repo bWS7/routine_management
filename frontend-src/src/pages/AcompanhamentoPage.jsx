@@ -8,8 +8,11 @@ import { Select } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
 import { StatusBadge, PeriodoBadge, PerfilBadge } from '../components/ui/Badge';
+import Pagination, { usePagination } from '../components/ui/Pagination';
 import { STATUS_LABELS, PERIODO_LABELS, PERFIL_LABELS, fmtDate, fmtDatetime } from '../utils/constants';
 import RotinaModal from '../components/shared/RotinaModal';
+
+const ACOMP_PER_PAGE = 25;
 
 export default function AcompanhamentoPage() {
   const { toast } = useToast();
@@ -33,6 +36,8 @@ export default function AcompanhamentoPage() {
   }, [periodo, usuarioId, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  const { page, setPage, pages, total, slice } = usePagination(rotinas, ACOMP_PER_PAGE, rotinas);
 
   const exportar = () => {
     let url = `/api/rotinas/export?periodo=${periodo}`;
@@ -87,7 +92,7 @@ export default function AcompanhamentoPage() {
                 </tr>
               </Thead>
               <Tbody>
-                {rotinas.map(r => (
+                {slice.map(r => (
                   <Tr key={r.id} onClick={() => setOpenId(r.id)}>
                     <Td>
                       <div className="font-medium text-gray-800">{r.usuario_nome}</div>
@@ -121,6 +126,7 @@ export default function AcompanhamentoPage() {
               </Tbody>
             </Table>
           )}
+          <Pagination page={page} pages={pages} total={total} perPage={ACOMP_PER_PAGE} onChange={setPage} />
         </Card>
       )}
 
