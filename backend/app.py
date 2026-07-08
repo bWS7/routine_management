@@ -94,8 +94,11 @@ def create_app():
         folder = app.config['UPLOAD_FOLDER']
         path = os.path.join(folder, filename)
 
+        # Serve inline (as_attachment=False) para abrir no navegador em vez de baixar.
+        # Tipos que o navegador sabe exibir (PDF, imagens) abrem na aba; os demais
+        # (ex.: Office) ainda são baixados pelo próprio navegador.
         if os.path.exists(path):
-            return send_from_directory(folder, filename, as_attachment=True)
+            return send_from_directory(folder, filename, as_attachment=False)
 
         # Arquivo não está no disco (ex: container reiniciou) — serve do banco
         evidencia = Evidencia.query.filter_by(url=f'/uploads/{filename}').first()
@@ -105,7 +108,7 @@ def create_app():
                 evidencia.conteudo,
                 mimetype=evidencia.tipo or 'application/octet-stream',
                 headers={
-                    'Content-Disposition': f'attachment; filename="{nome_display}"',
+                    'Content-Disposition': f'inline; filename="{nome_display}"',
                     'Content-Length': str(len(evidencia.conteudo)),
                 }
             )
