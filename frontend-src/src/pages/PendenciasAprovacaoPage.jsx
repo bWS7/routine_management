@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Check, X, AlertTriangle, FileText, Paperclip, ExternalLink } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -8,8 +8,11 @@ import { Textarea } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
 import { PeriodoBadge } from '../components/ui/Badge';
+import Pagination, { usePagination } from '../components/ui/Pagination';
 import { PERIODO_LABELS, fmtDate, fmtDatetime } from '../utils/constants';
 import FormularioComercialModal from '../components/shared/FormularioComercialModal';
+
+const APROVACAO_PER_PAGE = 20;
 
 function PendenciasAprovacaoPage() {
   const { currentUser } = useAuth();
@@ -119,11 +122,14 @@ function PendenciasAprovacaoPage() {
     );
   }
 
-  if (loading) return <PageSpinner />;
+  const pendentes = useMemo(() => atividades.filter(a => a.status_aprovacao === 'pendente'), [atividades]);
+  const aprovadas = useMemo(() => atividades.filter(a => a.status_aprovacao === 'aprovada'), [atividades]);
+  const reprovadas = useMemo(() => atividades.filter(a => a.status_aprovacao === 'reprovada'), [atividades]);
 
-  const pendentes = atividades.filter(a => a.status_aprovacao === 'pendente');
-  const aprovadas = atividades.filter(a => a.status_aprovacao === 'aprovada');
-  const reprovadas = atividades.filter(a => a.status_aprovacao === 'reprovada');
+  const lista = filtro === 'pendente' ? pendentes : filtro === 'aprovada' ? aprovadas : reprovadas;
+  const { page, setPage, pages, total, slice } = usePagination(lista, APROVACAO_PER_PAGE, filtro);
+
+  if (loading) return <PageSpinner />;
 
   return (
     <div className="space-y-6">
@@ -158,7 +164,6 @@ function PendenciasAprovacaoPage() {
 
       {/* Lista filtrada */}
       {(() => {
-        const lista = filtro === 'pendente' ? pendentes : filtro === 'aprovada' ? aprovadas : reprovadas;
         if (lista.length === 0) return (
           <EmptyState
             icon={filtro === 'pendente' ? AlertTriangle : filtro === 'aprovada' ? Check : X}
@@ -171,7 +176,7 @@ function PendenciasAprovacaoPage() {
         const iconColor = filtro === 'pendente' ? 'text-yellow-600' : filtro === 'aprovada' ? 'text-green-600' : 'text-red-600';
         return (
           <div className="space-y-2">
-            {lista.map(rotina => (
+            {slice.map(rotina => (
               <button
                 key={rotina.id}
                 onClick={() => selectRotina(rotina)}
@@ -203,6 +208,7 @@ function PendenciasAprovacaoPage() {
                 </div>
               </button>
             ))}
+            <Pagination page={page} pages={pages} total={total} perPage={APROVACAO_PER_PAGE} onChange={setPage} className="border-t-0 pt-1" />
           </div>
         );
       })()}

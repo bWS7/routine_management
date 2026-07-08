@@ -9,8 +9,11 @@ import { PageSpinner, EmptyState } from '../components/ui/Spinner';
 import { PeriodoBadge, StatusBadge } from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import { Select, Input } from '../components/ui/Input';
+import Pagination, { usePagination } from '../components/ui/Pagination';
 import FormularioComercialModal from '../components/shared/FormularioComercialModal';
 import { fmtDate, PERIODO_LABELS, STATUS_LABELS } from '../utils/constants';
+
+const RELATORIOS_PER_PAGE = 25;
 
 const PERFIL_LABELS = {
   sr: 'Superintendente Regional',
@@ -1196,6 +1199,8 @@ export default function RelatoriosPreenchimentoPage() {
 
   const totalFiltros = [busca, regionalId, perfil, atividadeId, periodicidade, status, dataInicio, dataFim].filter(Boolean).length;
 
+  const { page, setPage, pages, total, slice } = usePagination(relatorios, RELATORIOS_PER_PAGE, relatorios);
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -1325,15 +1330,16 @@ export default function RelatoriosPreenchimentoPage() {
                 </tr>
               </thead>
               <tbody>
-                {relatorios.map(r => (
+                {slice.map(r => (
                   <RelatorioRow key={r.id} rotina={r} onView={setViewRotina} />
                 ))}
               </tbody>
             </table>
           </div>
           <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-400">
-            {relatorios.length} relatório(s) · Clique em uma linha para expandir · Use "Ver" para o relatório completo
+            {total} relatório(s) · Clique em uma linha para expandir · Use "Ver" para o relatório completo
           </div>
+          <Pagination page={page} pages={pages} total={total} perPage={RELATORIOS_PER_PAGE} onChange={setPage} />
         </div>
       )}
 

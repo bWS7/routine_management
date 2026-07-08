@@ -5,8 +5,11 @@ import { Card } from '../components/ui/Card';
 import { Table, Thead, Th, Tbody, Tr, Td } from '../components/ui/Table';
 import { PageSpinner } from '../components/ui/Spinner';
 import { StatusBadge } from '../components/ui/Badge';
+import Pagination, { usePagination } from '../components/ui/Pagination';
 import { STATUS_LABELS, fmtDate } from '../utils/constants';
 import RotinaModal from '../components/shared/RotinaModal';
+
+const PENDENCIAS_PER_PAGE = 20;
 
 export default function PendenciasPage() {
   const [pendencias, setPendencias] = useState([]);
@@ -21,6 +24,8 @@ export default function PendenciasPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const { page, setPage, pages, total, slice } = usePagination(pendencias, PENDENCIAS_PER_PAGE);
 
   return (
     <div className="space-y-5">
@@ -60,7 +65,7 @@ export default function PendenciasPage() {
               </tr>
             </Thead>
             <Tbody>
-              {pendencias.map(r => (
+              {slice.map(r => (
                 <Tr key={r.id}>
                   <Td className="font-medium text-gray-800">{r.usuario_nome}</Td>
                   <Td>
@@ -100,6 +105,7 @@ export default function PendenciasPage() {
               ))}
             </Tbody>
           </Table>
+          <Pagination page={page} pages={pages} total={total} perPage={PENDENCIAS_PER_PAGE} onChange={setPage} />
         </Card>
       )}
 

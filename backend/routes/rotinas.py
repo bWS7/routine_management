@@ -516,13 +516,73 @@ def historico_rotina(rid):
 @rotinas_bp.route('/audit-log', methods=['GET'])
 @jwt_required()
 def listar_auditoria():
+    from sqlalchemy import or_
+
     me = get_current_user()
     if me.perfil != 'admin':
         return jsonify({'erro': 'Acesso negado'}), 403
 
-    limite = min(request.args.get('limit', 100, type=int), 500)
-    registros = AuditLog.query.order_by(AuditLog.criado_em.desc()).limit(limite).all()
-    return jsonify([r.to_dict() for r in registros])
+    data_inicio = request.args.get('data_inicio')
+    data_fim = request.args.get('data_fim')
+    usuario_id = request.args.get('usuario_id', type=int)
+    acao = request.args.get('acao')
+    entidade = request.args.get('entidade')
+    busca = (request.args.get('busca') or '').strip()
+    page = max(request.args.get('page', 1, type=int), 1)
+    per_page = min(max(request.args.get('per_page', 50, type=int), 1), 100)
+
+    query = AuditLog.query
+    if data_inicio:
+        try:
+            query = query.filter(AuditLog.criado_em >= datetime.combine(date.fromisoformat(data_inicio), datetime.min.time()))
+        except ValueError:
+            pass
+    if data_fim:
+        try:
+            query = query.filter(AuditLog.criado_em < datetime.combine(date.fromisoformat(data_fim) + timedelta(days=1), datetime.min.time()))
+        except ValueError:
+            pass
+    if usuario_id:
+        query = query.filter(AuditLog.usuario_id == usuario_id)
+    if acao:
+        query = query.filter(AuditLog.acao == acao)
+    if entidade:
+        query = query.filter(AuditLog.entidade == entidade)
+    if busca:
+        like = f'%{busca}%'
+        query = query.outerjoin(Usuario, AuditLog.usuario_id == Usuario.id).filter(or_(
+            AuditLog.detalhes.ilike(like),
+            AuditLog.entidade.ilike(like),
+            AuditLog.entidade_id.ilike(like),
+            Usuario.nome.ilike(like),
+        ))
+
+    total = query.count()
+    registros = (query.order_by(AuditLog.criado_em.desc())
+                 .offset((page - 1) * per_page).limit(per_page).all())
+
+    # Facets para os filtros (valores distintos existentes nos logs).
+    usuarios_facet = [
+        {'id': uid, 'nome': nome}
+        for uid, nome in db.session.query(Usuario.id, Usuario.nome)
+        .join(AuditLog, AuditLog.usuario_id == Usuario.id)
+        .distinct().order_by(Usuario.nome).all()
+    ]
+    acoes_facet = [a for (a,) in db.session.query(AuditLog.acao).distinct().order_by(AuditLog.acao).all() if a]
+    entidades_facet = [e for (e,) in db.session.query(AuditLog.entidade).distinct().order_by(AuditLog.entidade).all() if e]
+
+    return jsonify({
+        'items': [r.to_dict() for r in registros],
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'pages': (total + per_page - 1) // per_page,
+        'facets': {
+            'usuarios': usuarios_facet,
+            'acoes': acoes_facet,
+            'entidades': entidades_facet,
+        },
+    })
 
 
 @rotinas_bp.route('/minha-aderencia', methods=['GET'])
