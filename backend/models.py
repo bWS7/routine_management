@@ -7,9 +7,12 @@ import json
 # Folga (em dias) concedida após o fim do período para concluir a rotina,
 # conforme a periodicidade. Periodicidades não listadas não recebem folga.
 GRACE_DAYS_BY_PERIODICIDADE = {
-    'semanal': 2,  # semana (seg–dom) + 2 dias → até a terça seguinte
-    'mensal': 2,   # mês inteiro + 2 dias → ex.: Julho até 02/08
+    'semanal': 3,  # semana (seg–dom) + 3 dias → até a quarta seguinte
+    'mensal': 3,   # mês inteiro + 3 dias → ex.: Julho até 03/08
 }
+
+# Dias extras que o colaborador recebe para reenviar a atividade após reprovação.
+GRACE_DAYS_REENVIO = 2
 
 MESES_PT = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -184,6 +187,7 @@ class Rotina(db.Model):
     aprovador_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     data_aprovacao = db.Column(db.DateTime)
     motivo_reprovacao = db.Column(db.Text)
+    prazo_reenvio = db.Column(db.Date, nullable=True)  # prazo para reenvio após reprovação
     criado_em = db.Column(db.DateTime, default=get_now_br)
     atualizado_em = db.Column(db.DateTime, default=get_now_br, onupdate=get_now_br)
     atividade = db.relationship('AtividadeCatalogo', backref='rotinas', lazy=True)
@@ -194,10 +198,15 @@ class Rotina(db.Model):
 
     @property
     def prazo_limite(self):
+        # Se a atividade foi reprovada e tem prazo_reenvio, o prazo efetivo
+        # passa a ser o prazo_reenvio (data_reprovação + GRACE_DAYS_REENVIO).
+        if self.status_aprovacao == 'reprovada' and self.prazo_reenvio:
+            return self.prazo_reenvio
+
         # O prazo da rotina é o fim do seu período (dia/semana/quinzena/mês),
         # acrescido de uma folga de conclusão conforme a periodicidade. A
         # atividade só é considerada vencida APÓS o término do período + folga —
-        # uma rotina semanal (seg a dom) pode ser concluída até a terça seguinte.
+        # uma rotina semanal (seg a dom) pode ser concluída até a quarta seguinte.
         fim = self.periodo_fim or self.periodo_inicio
         if not fim:
             return None
@@ -268,6 +277,7 @@ class Rotina(db.Model):
             'aprovador_nome': self.aprovador.nome if self.aprovador else None,
             'data_aprovacao': self.data_aprovacao.replace(tzinfo=timezone.utc).isoformat() if self.data_aprovacao else None,
             'motivo_reprovacao': self.motivo_reprovacao,
+            'prazo_reenvio': self.prazo_reenvio.isoformat() if self.prazo_reenvio else None,
             'pendente_prazo': (
                 self.atividade.obrigatoria
                 and self.status in ['nao_iniciada', 'em_andamento']

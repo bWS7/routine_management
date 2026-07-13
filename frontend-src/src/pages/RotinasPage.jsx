@@ -39,7 +39,11 @@ function RotinaCard({ rotina, onClick }) {
   // Atividade obrigatória vencida (pendência) é exibida como "Não Realizada".
   const displayStatus = rotina.pendente_prazo ? 'nao_realizada' : rotina.status;
   const { Icon, color } = STATUS_ICONS[displayStatus] || STATUS_ICONS.nao_iniciada;
-  const aprovacao = rotina.status === 'concluida' ? STATUS_APROVACAO_ICONS[rotina.status_aprovacao] : null;
+  // Reprovada reabre a rotina em 'em_andamento' (para correção), então o status
+  // sozinho não basta para decidir se mostra o badge de aprovação.
+  const aprovacao = (rotina.status === 'concluida' || rotina.status_aprovacao === 'reprovada')
+    ? STATUS_APROVACAO_ICONS[rotina.status_aprovacao]
+    : null;
 
   return (
     <button
@@ -88,8 +92,11 @@ function RotinaCard({ rotina, onClick }) {
         </div>
       )}
       {rotina.status_aprovacao === 'reprovada' && rotina.motivo_reprovacao && (
-        <div className="mt-2.5 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 line-clamp-2">
-          <strong>Motivo da reprovação:</strong> {rotina.motivo_reprovacao}
+        <div className="mt-2.5 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
+          <div className="line-clamp-2"><strong>Motivo da reprovação:</strong> {rotina.motivo_reprovacao}</div>
+          {rotina.prazo_reenvio && (
+            <div className="mt-1 text-red-500">Prazo para reenvio: {fmtDate(rotina.prazo_reenvio)}</div>
+          )}
         </div>
       )}
     </button>
@@ -285,7 +292,9 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   // Em pendência (não realizada) o relatório não pode ser preenchido.
   const canFillReport = canEdit && !isPendencia;
 
+  const prazoReenvioExpirado = rotina?.prazo_reenvio && new Date(rotina.prazo_reenvio + 'T23:59:59') < new Date();
   const canReenviar = rotina?.status_aprovacao === 'reprovada' &&
+                      !prazoReenvioExpirado &&
                       (rotina?.usuario_id === currentUser?.id || currentUser?.perfil === 'admin');
 
   const reenviar = async () => {
@@ -423,7 +432,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
               <div className="text-xs font-medium text-gray-500 mb-1">Tipo de Evidência</div>
               <div className="text-sm text-gray-500">{rotina.tipo_evidencia || '—'}</div>
             </div>
-            {rotina.status === 'concluida' && rotina.status_aprovacao && (
+            {(rotina.status === 'concluida' || rotina.status_aprovacao === 'reprovada') && rotina.status_aprovacao && (
               <>
                 <div>
                   <div className="text-xs font-medium text-gray-500 mb-1">Status Aprovação</div>
@@ -452,6 +461,17 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
                   <div className="col-span-2">
                     <div className="text-xs font-medium text-gray-500 mb-1">Motivo Reprovação</div>
                     <div className="text-sm text-red-600 bg-red-50 p-2 rounded-lg">{rotina.motivo_reprovacao}</div>
+                  </div>
+                )}
+                {rotina.prazo_reenvio && (
+                  <div className="col-span-2">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Prazo para Reenvio</div>
+                    <div className={`text-sm p-2 rounded-lg ${
+                      prazoReenvioExpirado ? 'text-red-600 bg-red-50' : 'text-amber-700 bg-amber-50'
+                    }`}>
+                      {fmtDate(rotina.prazo_reenvio)}
+                      {prazoReenvioExpirado && ' (expirado)'}
+                    </div>
                   </div>
                 )}
               </>

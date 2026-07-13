@@ -8,7 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from backend.audit import log_audit
 from backend.utils.dates import get_now_br
-from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog, GRACE_DAYS_BY_PERIODICIDADE
+from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog, GRACE_DAYS_BY_PERIODICIDADE, GRACE_DAYS_REENVIO
 from backend.constants import atividade_requer_aprovacao
 from backend.extensions import db
 from datetime import date, timedelta, datetime, timezone
@@ -104,8 +104,11 @@ def filtro_periodo_atual(model, referencia):
 
 def filtro_carry_over(model, referencia):
     """Filtro (OR) das atividades obrigatórias de períodos anteriores ainda dentro
-    da folga de prazo (ex.: semanal = +2 dias) e em aberto — para continuarem
+    da folga de prazo (ex.: semanal = +3 dias) e em aberto — para continuarem
     visíveis na aba do período corrente em vez de sumirem na virada do período.
+    Também mantém visível a atividade reprovada cujo prazo_reenvio ainda não
+    expirou, mesmo que isso ultrapasse a folga padrão (o aprovador pode demorar
+    para revisar).
     Só se aplica quando se está vendo o período que contém a data de hoje."""
     from sqlalchemy import or_, and_
 
@@ -120,8 +123,15 @@ def filtro_carry_over(model, referencia):
         filtros.append(and_(
             model.periodicidade == periodicidade,
             model.periodo_fim < inicio,
-            model.periodo_fim >= hoje - timedelta(days=grace),
-            model.status.in_(['nao_iniciada', 'em_andamento'])
+            model.status.in_(['nao_iniciada', 'em_andamento']),
+            or_(
+                model.periodo_fim >= hoje - timedelta(days=grace),
+                and_(
+                    model.status_aprovacao == 'reprovada',
+                    model.prazo_reenvio.isnot(None),
+                    model.prazo_reenvio >= hoje,
+                ),
+            )
         ))
     return or_(*filtros) if filtros else None
 
@@ -674,8 +684,8 @@ def exportar_rotinas():
 
     rotinas = query.order_by(Rotina.periodo_inicio.desc()).all()
     linhas = [[
-        r.usuario_nome,
-        r.atividade_nome,
+        r.usuario.nome if r.usuario else '',
+        r.atividade.nome if r.atividade else '',
         r.periodicidade,
         r.status,
         r.periodo_inicio.isoformat() if r.periodo_inicio else '',
@@ -851,9 +861,9 @@ def exportar_dashboard():
 
     rotinas = query.all()
     linhas = [[
-        r.usuario_nome,
+        r.usuario.nome if r.usuario else '',
         r.usuario.regional.nome if r.usuario and r.usuario.regional else '',
-        r.atividade_nome,
+        r.atividade.nome if r.atividade else '',
         r.periodicidade,
         r.status,
         r.data_conclusao.isoformat() if r.data_conclusao else ''
@@ -995,8 +1005,11 @@ def reprovar_atividade(rid):
     rotina.aprovador_id = me.id
     rotina.data_aprovacao = get_now_br()
     rotina.motivo_reprovacao = motivo
-    
-    # Registrar no histórico de aprovações
+
+    # Conceder prazo extra ao colaborador para reenviar (data da reprovação + GRACE_DAYS_REENVIO)
+    rotina.prazo_reenvio = date.today() + timedelta(days=GRACE_DAYS_REENVIO)
+    rotina.status = 'em_andamento'  # Reabrir para correção
+
     from backend.models import AprovacaoRotina
     aprovacao = AprovacaoRotina(
         rotina_id=rotina.id,
@@ -1054,17 +1067,33 @@ def reenviar_para_aprovacao(rid):
     if rotina.status_aprovacao != 'reprovada':
         return jsonify({'erro': 'Apenas atividades reprovadas podem ser reenviadas'}), 400
 
+    # Verificar se o prazo de reenvio não expirou
+    if rotina.prazo_reenvio and rotina.prazo_reenvio < date.today():
+        return jsonify({'erro': 'O prazo para reenvio desta atividade já expirou'}), 400
+
+    # Validar requisitos de conclusão
+    if not rotina.formulario_preenchido:
+        return jsonify({'erro': 'Preencha o Relatório Comercial antes de reenviar a atividade'}), 400
+    if not rotina.evidencias:
+        return jsonify({'erro': 'Anexe pelo menos uma evidência antes de reenviar a atividade'}), 400
+
+    status_anterior = rotina.status
+    rotina.status = 'concluida'
+    if not rotina.data_conclusao:
+        rotina.data_conclusao = get_now_br()
+
     rotina.status_aprovacao = 'pendente'
     rotina.aprovador_id = None
     rotina.data_aprovacao = None
     rotina.motivo_reprovacao = None
+    rotina.prazo_reenvio = None  # limpar prazo após reenvio bem-sucedido
 
     add_rotina_history(
         rotina,
         me.id,
         'reenvio_para_aprovacao',
         observacao='Atividade reenviada para aprovação pelo colaborador',
-        status_anterior=rotina.status,
+        status_anterior=status_anterior,
         status_novo=rotina.status
     )
 

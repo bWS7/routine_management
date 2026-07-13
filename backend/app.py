@@ -321,6 +321,8 @@ def _ensure_runtime_columns():
             db.session.execute(text("ALTER TABLE rotinas ADD COLUMN data_aprovacao TIMESTAMP"))
         if 'formulario_preenchido' not in existentes:
             db.session.execute(text("ALTER TABLE rotinas ADD COLUMN formulario_preenchido BOOLEAN DEFAULT FALSE"))
+        if 'prazo_reenvio' not in existentes:
+            db.session.execute(text("ALTER TABLE rotinas ADD COLUMN prazo_reenvio DATE"))
 
     if 'aprovacoes_rotinas' in tabelas:
         existentes_ap = {col['name'] for col in insp.get_columns('aprovacoes_rotinas')}
