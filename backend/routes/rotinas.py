@@ -646,28 +646,68 @@ COLUNAS_FORMULARIO_COMERCIAL = [
 ]
 
 
+def _is_list_of_dicts(val):
+    return isinstance(val, list) and all(isinstance(item, dict) for item in val)
+
+
 def _linha_formulario_comercial(r):
+    """Wrapper seguro: uma linha com formato inesperado não pode derrubar a
+    exportação inteira (já aconteceu em produção). Se o achatamento falhar por
+    qualquer motivo não previsto, devolve uma linha em branco com o JSON bruto
+    jogado na coluna 'Relatório Customizado' em vez de propagar a exceção."""
+    try:
+        return _achatar_formulario_comercial(r)
+    except Exception:
+        linha = [''] * (len(COLUNAS_FORMULARIO_COMERCIAL) - 1)
+        return linha + [f"[erro ao processar relatório] {r.formulario_comercial or ''}"[:500]]
+
+
+def _achatar_formulario_comercial(r):
     """Achata o formulario_comercial (JSON, formato varia por perfil/atividade) nas
     colunas de COLUNAS_FORMULARIO_COMERCIAL. Campos fora do relatório padrão comercial
-    (relatórios de SR/SP/CD/GV) caem na coluna 'Relatório Customizado' como texto."""
+    (relatórios de SR/SP/CD/GV) caem na coluna 'Relatório Customizado' como texto.
+
+    Os relatórios de SR/SP/CD/GV reaproveitam nomes de campo do relatório padrão
+    (ex.: 'participantes', 'resultados') com formatos diferentes (texto solto em vez
+    de lista de dicts, lista em vez de dict de indicadores). Por isso cada campo do
+    padrão só é tratado como tal se realmente tiver o formato esperado; caso
+    contrário cai no dump genérico de 'Relatório Customizado' em vez de quebrar."""
     try:
         f = json.loads(r.formulario_comercial) if r.formulario_comercial else {}
+        if not isinstance(f, dict):
+            f = {}
     except Exception:
         f = {}
 
-    def ind(nome, campo):
-        return f.get('resultados', {}).get(nome, {}).get(campo, '')
+    resultados = f.get('resultados')
+    resultados_e_dict = isinstance(resultados, dict)
 
-    participantes = f.get('participantes', [])
-    plano = f.get('plano_acao', [])
+    def ind(nome, campo):
+        if not resultados_e_dict:
+            return ''
+        valor = resultados.get(nome)
+        return valor.get(campo, '') if isinstance(valor, dict) else ''
+
+    participantes_raw = f.get('participantes')
+    participantes = participantes_raw if _is_list_of_dicts(participantes_raw) else []
+
+    plano_raw = f.get('plano_acao')
+    plano = plano_raw if _is_list_of_dicts(plano_raw) else []
 
     campos_padrao = [
         'categoria', 'empreendimento', 'data_execucao', 'hora_inicio', 'hora_termino',
-        'objetivo', 'resumo_execucao', 'principais_temas', 'resultados',
+        'objetivo', 'resumo_execucao', 'principais_temas',
         'observacao_evidencias', 'dificuldades', 'motivo_desvio_1', 'motivo_desvio_2',
         'descricao_causa', 'necessita_apoio', 'area_apoio', 'motivo_apoio',
-        'objetivo_atingido', 'proximos_passos', 'participantes', 'plano_acao',
+        'objetivo_atingido', 'proximos_passos',
     ]
+    if resultados_e_dict:
+        campos_padrao.append('resultados')
+    if participantes:
+        campos_padrao.append('participantes')
+    if plano:
+        campos_padrao.append('plano_acao')
+
     custom_keys = [k for k in f.keys() if k not in campos_padrao]
     custom_parts = []
     for k in custom_keys:
@@ -682,6 +722,9 @@ def _linha_formulario_comercial(r):
                 else:
                     list_parts.append(str(item))
             custom_parts.append(f"{k}: " + "; ".join(list_parts))
+        elif isinstance(val, dict):
+            item_str = ", ".join(f"{ik}: {iv}" for ik, iv in val.items() if iv)
+            custom_parts.append(f"{k}: {item_str}")
         else:
             custom_parts.append(f"{k}: {val}")
     custom_summary = " | ".join(custom_parts)
