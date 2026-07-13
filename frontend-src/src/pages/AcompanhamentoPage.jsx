@@ -28,7 +28,10 @@ export default function AcompanhamentoPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    let url = `/api/rotinas/?periodo=${periodo}`;
+    // historico=1: mostra o historico completo por padrao (sem restringir ao
+    // "periodo atual"), senao atividades diarias como o Checklist de Abertura do
+    // Stand so apareceriam no proprio dia em que foram criadas.
+    let url = `/api/rotinas/?periodo=${periodo}&historico=1`;
     if (usuarioId) url += `&usuario_id=${usuarioId}`;
     if (statusFilter) url += `&status=${statusFilter}`;
     if (dataInicio) url += `&data_inicio=${dataInicio}`;
@@ -44,7 +47,7 @@ export default function AcompanhamentoPage() {
   const { page, setPage, pages, total, slice } = usePagination(rotinas, ACOMP_PER_PAGE, rotinas);
 
   const exportar = () => {
-    let url = `/api/rotinas/export?periodo=${periodo}`;
+    let url = `/api/rotinas/export?periodo=${periodo}&historico=1`;
     if (usuarioId) url += `&usuario_id=${usuarioId}`;
     if (statusFilter) url += `&status=${statusFilter}`;
     if (dataInicio) url += `&data_inicio=${dataInicio}`;
@@ -110,7 +113,7 @@ export default function AcompanhamentoPage() {
                       <span className="font-medium text-gray-700 line-clamp-2">{r.atividade_nome}</span>
                     </Td>
                     <Td><PeriodoBadge periodo={r.periodicidade} label={PERIODO_LABELS[r.periodicidade]} /></Td>
-                    <Td><span className="text-xs text-gray-500">{fmtDate(r.periodo_inicio)}</span></Td>
+                    <Td><span className="text-xs text-gray-500 whitespace-nowrap">{fmtDate(r.periodo_inicio)} → {fmtDate(r.periodo_fim)}</span></Td>
                     <Td>
                       <div className="flex flex-col gap-1">
                         <StatusBadge status={r.status} label={STATUS_LABELS[r.status]} />

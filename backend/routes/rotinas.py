@@ -136,18 +136,26 @@ def filtro_carry_over(model, referencia):
     return or_(*filtros) if filtros else None
 
 
-def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim_str=None):
+def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim_str=None, historico=False):
     """Condição (SQLAlchemy) de período usada tanto na listagem quanto na exportação
-    de rotinas.
+    de rotinas. Retorna None quando não há nenhuma restrição de período a aplicar
+    (chamador deve pular o .filter() nesse caso).
 
-    Com data_inicio/data_fim: filtro por intervalo de datas explícito — histórico
-    completo, sem restrição ao "período atual". Necessário porque, sem isso, ativi-
-    dades diárias (ex.: Checklist de Abertura do Stand) só ficam visíveis no dia em
-    que foram criadas: não têm folga configurada em GRACE_DAYS_BY_PERIODICIDADE, e
-    o filtro de período atual (abaixo) só olha para o dia de hoje.
+    Com data_inicio/data_fim: filtro por intervalo de datas explícito.
 
-    Sem data_inicio/data_fim: comportamento anterior, restrito ao período atual de
-    cada periodicidade (+ folga de carry-over quando aplicável)."""
+    Com historico=True (sem data_inicio/data_fim): sem nenhuma restrição de período
+    — histórico completo, só filtrando por tipo de periodicidade se um tipo
+    específico foi escolhido. Usado pela aba Acompanhamento, que existe justamente
+    para revisar o histórico (não só o período corrente).
+
+    Sem nenhum dos dois: comportamento original, restrito ao período atual de cada
+    periodicidade (+ folga de carry-over quando aplicável). Usado pela tela de
+    rotinas do próprio colaborador, que deve mostrar as tarefas do momento.
+
+    Isso importa porque atividades diárias (ex.: Checklist de Abertura do Stand)
+    não têm folga configurada em GRACE_DAYS_BY_PERIODICIDADE: sem historico=True
+    ou um intervalo de datas, só ficam visíveis no próprio dia em que foram
+    criadas."""
     from sqlalchemy import or_, and_
 
     if data_inicio_str or data_fim_str:
@@ -159,6 +167,9 @@ def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim
         if periodo != 'todas':
             condicoes.append(Rotina.periodicidade == periodo)
         return and_(*condicoes) if condicoes else None
+
+    if historico:
+        return Rotina.periodicidade == periodo if periodo != 'todas' else None
 
     carry = filtro_carry_over(Rotina, referencia)
     if periodo == 'todas':
@@ -324,11 +335,14 @@ def listar():
     data_ref = request.args.get('data_ref')
     data_inicio = request.args.get('data_inicio')
     data_fim = request.args.get('data_fim')
+    historico = request.args.get('historico', '').lower() in ('1', 'true')
 
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
-    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim)
-    query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(cond)
+    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim, historico)
+    query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id)
+    if cond is not None:
+        query = query.filter(cond)
 
     # Visibilidade por hierarquia
     if me.perfil == 'admin':
@@ -844,10 +858,13 @@ def exportar_rotinas():
     data_ref = request.args.get('data_ref')
     data_inicio = request.args.get('data_inicio')
     data_fim = request.args.get('data_fim')
+    historico = request.args.get('historico', '').lower() in ('1', 'true')
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
-    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim)
-    query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(cond)
+    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim, historico)
+    query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id)
+    if cond is not None:
+        query = query.filter(cond)
 
     if me.perfil == 'admin':
         if regional_id:
