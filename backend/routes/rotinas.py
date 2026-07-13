@@ -630,6 +630,93 @@ def minha_aderencia():
     })
 
 
+COLUNAS_FORMULARIO_COMERCIAL = [
+    'Categoria', 'Empreendimento', 'Data Execução', 'Hora Início', 'Hora Término',
+    'Objetivo', 'Resumo da Execução', 'Principais Temas',
+    'Leads - Resultado', 'Leads - Meta', 'Leads - Status',
+    'Conversão - Resultado', 'Conversão - Meta', 'Conversão - Status',
+    'Visitas - Resultado', 'Visitas - Meta', 'Visitas - Status',
+    'Reservas - Resultado', 'Reservas - Meta', 'Reservas - Status',
+    'Vendas - Resultado', 'Vendas - Meta', 'Vendas - Status',
+    'Observação Evidências', 'Dificuldades', 'Motivo Desvio 1', 'Motivo Desvio 2',
+    'Descrição da Causa', 'Necessita Apoio', 'Área de Apoio', 'Motivo Apoio',
+    'Objetivo Atingido', 'Próximos Passos',
+    'Qtde Evidências', 'Qtde Participantes', 'Qtde Ações no Plano',
+    'Relatório Customizado',
+]
+
+
+def _linha_formulario_comercial(r):
+    """Achata o formulario_comercial (JSON, formato varia por perfil/atividade) nas
+    colunas de COLUNAS_FORMULARIO_COMERCIAL. Campos fora do relatório padrão comercial
+    (relatórios de SR/SP/CD/GV) caem na coluna 'Relatório Customizado' como texto."""
+    try:
+        f = json.loads(r.formulario_comercial) if r.formulario_comercial else {}
+    except Exception:
+        f = {}
+
+    def ind(nome, campo):
+        return f.get('resultados', {}).get(nome, {}).get(campo, '')
+
+    participantes = f.get('participantes', [])
+    plano = f.get('plano_acao', [])
+
+    campos_padrao = [
+        'categoria', 'empreendimento', 'data_execucao', 'hora_inicio', 'hora_termino',
+        'objetivo', 'resumo_execucao', 'principais_temas', 'resultados',
+        'observacao_evidencias', 'dificuldades', 'motivo_desvio_1', 'motivo_desvio_2',
+        'descricao_causa', 'necessita_apoio', 'area_apoio', 'motivo_apoio',
+        'objetivo_atingido', 'proximos_passos', 'participantes', 'plano_acao',
+    ]
+    custom_keys = [k for k in f.keys() if k not in campos_padrao]
+    custom_parts = []
+    for k in custom_keys:
+        val = f[k]
+        if isinstance(val, list):
+            list_parts = []
+            for item in val:
+                if isinstance(item, dict):
+                    item_str = ", ".join(f"{ik}: {iv}" for ik, iv in item.items() if iv)
+                    if item_str:
+                        list_parts.append(f"[{item_str}]")
+                else:
+                    list_parts.append(str(item))
+            custom_parts.append(f"{k}: " + "; ".join(list_parts))
+        else:
+            custom_parts.append(f"{k}: {val}")
+    custom_summary = " | ".join(custom_parts)
+
+    return [
+        f.get('categoria', ''),
+        f.get('empreendimento', ''),
+        f.get('data_execucao', ''),
+        f.get('hora_inicio', ''),
+        f.get('hora_termino', ''),
+        f.get('objetivo', ''),
+        f.get('resumo_execucao', ''),
+        f.get('principais_temas', ''),
+        ind('Leads', 'resultado_atual'), ind('Leads', 'meta'), ind('Leads', 'status'),
+        ind('Conversão', 'resultado_atual'), ind('Conversão', 'meta'), ind('Conversão', 'status'),
+        ind('Visitas', 'resultado_atual'), ind('Visitas', 'meta'), ind('Visitas', 'status'),
+        ind('Reservas', 'resultado_atual'), ind('Reservas', 'meta'), ind('Reservas', 'status'),
+        ind('Vendas', 'resultado_atual'), ind('Vendas', 'meta'), ind('Vendas', 'status'),
+        f.get('observacao_evidencias', ''),
+        f.get('dificuldades', ''),
+        f.get('motivo_desvio_1', ''),
+        f.get('motivo_desvio_2', ''),
+        f.get('descricao_causa', ''),
+        f.get('necessita_apoio', ''),
+        f.get('area_apoio', ''),
+        f.get('motivo_apoio', ''),
+        f.get('objetivo_atingido', ''),
+        f.get('proximos_passos', ''),
+        len(r.evidencias),
+        len([p for p in participantes if p.get('nome')]),
+        len([a for a in plano if a.get('acao')]),
+        custom_summary,
+    ]
+
+
 def _export_csv(nome_arquivo, cabecalho, linhas):
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -694,11 +781,12 @@ def exportar_rotinas():
         r.comentario or '',
         r.justificativa or '',
         r.acao_corretiva or '',
-        len(r.evidencias)
+        len(r.evidencias),
+        *_linha_formulario_comercial(r),
     ] for r in rotinas]
     return _export_csv(
         f'rotinas_{periodo}.csv',
-        ['Usuario', 'Atividade', 'Periodicidade', 'Status', 'Periodo Inicio', 'Periodo Fim', 'Conclusao', 'Comentario', 'Justificativa', 'Plano Acao', 'Qtde Evidencias'],
+        ['Usuario', 'Atividade', 'Periodicidade', 'Status', 'Periodo Inicio', 'Periodo Fim', 'Conclusao', 'Comentario', 'Justificativa', 'Plano Acao', 'Qtde Evidencias', *COLUNAS_FORMULARIO_COMERCIAL],
         linhas
     )
 
@@ -1257,89 +1345,21 @@ def exportar_relatorios_preenchimento():
     cabecalho = [
         'Colaborador', 'Regional', 'Cargo', 'Atividade', 'Periodicidade',
         'Período Início', 'Período Fim', 'Status', 'Status Aprovação',
-        'Categoria', 'Empreendimento', 'Data Execução', 'Hora Início', 'Hora Término',
-        'Objetivo', 'Resumo da Execução', 'Principais Temas',
-        'Leads - Resultado', 'Leads - Meta', 'Leads - Status',
-        'Conversão - Resultado', 'Conversão - Meta', 'Conversão - Status',
-        'Visitas - Resultado', 'Visitas - Meta', 'Visitas - Status',
-        'Reservas - Resultado', 'Reservas - Meta', 'Reservas - Status',
-        'Vendas - Resultado', 'Vendas - Meta', 'Vendas - Status',
-        'Observação Evidências', 'Dificuldades', 'Motivo Desvio 1', 'Motivo Desvio 2',
-        'Descrição da Causa', 'Necessita Apoio', 'Área de Apoio', 'Motivo Apoio',
-        'Objetivo Atingido', 'Próximos Passos',
-        'Qtde Evidências', 'Qtde Participantes', 'Qtde Ações no Plano',
-        'Relatório Customizado',
+        *COLUNAS_FORMULARIO_COMERCIAL,
     ]
 
-    linhas = []
-    for r in rotinas:
-        try:
-            f = json.loads(r.formulario_comercial) if r.formulario_comercial else {}
-        except Exception:
-            f = {}
-
-        def ind(nome, campo):
-            return f.get('resultados', {}).get(nome, {}).get(campo, '')
-
-        participantes = f.get('participantes', [])
-        plano = f.get('plano_acao', [])
-
-        custom_keys = [k for k in f.keys() if k not in ['categoria', 'empreendimento', 'data_execucao', 'hora_inicio', 'hora_termino', 'objetivo', 'resumo_execucao', 'principais_temas', 'resultados', 'observacao_evidencias', 'dificuldades', 'motivo_desvio_1', 'motivo_desvio_2', 'descricao_causa', 'necessita_apoio', 'area_apoio', 'motivo_apoio', 'objetivo_atingido', 'proximos_passos', 'participantes', 'plano_acao']]
-        custom_parts = []
-        for k in custom_keys:
-            val = f[k]
-            if isinstance(val, list):
-                list_parts = []
-                for item in val:
-                    if isinstance(item, dict):
-                        item_str = ", ".join(f"{ik}: {iv}" for ik, iv in item.items() if iv)
-                        if item_str:
-                            list_parts.append(f"[{item_str}]")
-                    else:
-                        list_parts.append(str(item))
-                custom_parts.append(f"{k}: " + "; ".join(list_parts))
-            else:
-                custom_parts.append(f"{k}: {val}")
-        custom_summary = " | ".join(custom_parts)
-
-        linhas.append([
-            r.usuario.nome if r.usuario else '',
-            r.usuario.regional.nome if r.usuario and r.usuario.regional else '',
-            r.atividade.perfil if r.atividade else '',
-            r.atividade.nome if r.atividade else '',
-            r.periodicidade or '',
-            r.periodo_inicio.isoformat() if r.periodo_inicio else '',
-            r.periodo_fim.isoformat() if r.periodo_fim else '',
-            r.status or '',
-            r.status_aprovacao or '',
-            f.get('categoria', ''),
-            f.get('empreendimento', ''),
-            f.get('data_execucao', ''),
-            f.get('hora_inicio', ''),
-            f.get('hora_termino', ''),
-            f.get('objetivo', ''),
-            f.get('resumo_execucao', ''),
-            f.get('principais_temas', ''),
-            ind('Leads','resultado_atual'), ind('Leads','meta'), ind('Leads','status'),
-            ind('Conversão','resultado_atual'), ind('Conversão','meta'), ind('Conversão','status'),
-            ind('Visitas','resultado_atual'), ind('Visitas','meta'), ind('Visitas','status'),
-            ind('Reservas','resultado_atual'), ind('Reservas','meta'), ind('Reservas','status'),
-            ind('Vendas','resultado_atual'), ind('Vendas','meta'), ind('Vendas','status'),
-            f.get('observacao_evidencias', ''),
-            f.get('dificuldades', ''),
-            f.get('motivo_desvio_1', ''),
-            f.get('motivo_desvio_2', ''),
-            f.get('descricao_causa', ''),
-            f.get('necessita_apoio', ''),
-            f.get('area_apoio', ''),
-            f.get('motivo_apoio', ''),
-            f.get('objetivo_atingido', ''),
-            f.get('proximos_passos', ''),
-            len(r.evidencias),
-            len([p for p in participantes if p.get('nome')]),
-            len([a for a in plano if a.get('acao')]),
-            custom_summary,
-        ])
+    linhas = [[
+        r.usuario.nome if r.usuario else '',
+        r.usuario.regional.nome if r.usuario and r.usuario.regional else '',
+        r.atividade.perfil if r.atividade else '',
+        r.atividade.nome if r.atividade else '',
+        r.periodicidade or '',
+        r.periodo_inicio.isoformat() if r.periodo_inicio else '',
+        r.periodo_fim.isoformat() if r.periodo_fim else '',
+        r.status or '',
+        r.status_aprovacao or '',
+        *_linha_formulario_comercial(r),
+    ] for r in rotinas]
 
     return _export_csv('relatorios_preenchimento.csv', cabecalho, linhas)
 
