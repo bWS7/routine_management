@@ -761,8 +761,14 @@ def _achatar_formulario_comercial(r):
 
 
 def _export_csv(nome_arquivo, cabecalho, linhas):
+    # Excel em locale pt-BR usa ';' como separador de lista ao abrir .csv por
+    # duplo-clique e ignora ',' como delimitador — sem isso, a planilha inteira
+    # cai numa única coluna e campos multi-linha (textareas) quebram em linhas
+    # soltas. A diretiva 'sep=;' força o Excel a usar o delimitador correto
+    # independente do locale.
     buffer = io.StringIO()
-    writer = csv.writer(buffer)
+    buffer.write('sep=;\r\n')
+    writer = csv.writer(buffer, delimiter=';')
     writer.writerow(cabecalho)
     writer.writerows(linhas)
     mem = io.BytesIO(buffer.getvalue().encode('utf-8-sig'))
