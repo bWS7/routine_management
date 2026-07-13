@@ -136,6 +136,47 @@ def filtro_carry_over(model, referencia):
     return or_(*filtros) if filtros else None
 
 
+def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim_str=None):
+    """Condição (SQLAlchemy) de período usada tanto na listagem quanto na exportação
+    de rotinas.
+
+    Com data_inicio/data_fim: filtro por intervalo de datas explícito — histórico
+    completo, sem restrição ao "período atual". Necessário porque, sem isso, ativi-
+    dades diárias (ex.: Checklist de Abertura do Stand) só ficam visíveis no dia em
+    que foram criadas: não têm folga configurada em GRACE_DAYS_BY_PERIODICIDADE, e
+    o filtro de período atual (abaixo) só olha para o dia de hoje.
+
+    Sem data_inicio/data_fim: comportamento anterior, restrito ao período atual de
+    cada periodicidade (+ folga de carry-over quando aplicável)."""
+    from sqlalchemy import or_, and_
+
+    if data_inicio_str or data_fim_str:
+        condicoes = []
+        if data_inicio_str:
+            condicoes.append(Rotina.periodo_fim >= date.fromisoformat(data_inicio_str))
+        if data_fim_str:
+            condicoes.append(Rotina.periodo_inicio <= date.fromisoformat(data_fim_str))
+        if periodo != 'todas':
+            condicoes.append(Rotina.periodicidade == periodo)
+        return and_(*condicoes) if condicoes else None
+
+    carry = filtro_carry_over(Rotina, referencia)
+    if periodo == 'todas':
+        base = filtro_periodo_atual(Rotina, referencia)
+    else:
+        inicio, fim = get_periodo(periodo, referencia)
+        base = and_(
+            Rotina.periodo_inicio >= inicio,
+            Rotina.periodo_fim <= fim,
+            Rotina.periodicidade == periodo
+        )
+        # No modo por periodicidade, restringe o carry-over à periodicidade vista.
+        if carry is not None:
+            carry = and_(carry, Rotina.periodicidade == periodo)
+
+    return or_(base, carry) if carry is not None else base
+
+
 def rotina_vencida_pendente(rotina):
     prazo_limite = rotina.prazo_limite
     return (
@@ -281,30 +322,12 @@ def listar():
     status = request.args.get('status')
     periodo = request.args.get('periodo', 'semanal')
     data_ref = request.args.get('data_ref')
+    data_inicio = request.args.get('data_inicio')
+    data_fim = request.args.get('data_fim')
 
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
-    from sqlalchemy import or_, and_
-
-    # Folga de prazo: atividades do período anterior ainda dentro da folga (ex.:
-    # semanal = +2 dias → 9 dias no total) e em aberto continuam visíveis na aba
-    # do período corrente, em vez de sumirem na virada do período.
-    carry = filtro_carry_over(Rotina, referencia)
-
-    if periodo == 'todas':
-        base = filtro_periodo_atual(Rotina, referencia)
-    else:
-        inicio, fim = get_periodo(periodo, referencia)
-        base = and_(
-            Rotina.periodo_inicio >= inicio,
-            Rotina.periodo_fim <= fim,
-            Rotina.periodicidade == periodo
-        )
-        # No modo por periodicidade, restringe o carry-over à periodicidade vista.
-        if carry is not None:
-            carry = and_(carry, Rotina.periodicidade == periodo)
-
-    cond = or_(base, carry) if carry is not None else base
+    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim)
     query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(cond)
 
     # Visibilidade por hierarquia
@@ -819,19 +842,12 @@ def exportar_rotinas():
     status = request.args.get('status')
     periodo = request.args.get('periodo', 'semanal')
     data_ref = request.args.get('data_ref')
+    data_inicio = request.args.get('data_inicio')
+    data_fim = request.args.get('data_fim')
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
-    if periodo == 'todas':
-        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            filtro_periodo_atual(Rotina, referencia)
-        )
-    else:
-        inicio, fim = get_periodo(periodo, referencia)
-        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            Rotina.periodo_inicio >= inicio,
-            Rotina.periodo_fim <= fim,
-            Rotina.periodicidade == periodo
-        )
+    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim)
+    query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(cond)
 
     if me.perfil == 'admin':
         if regional_id:

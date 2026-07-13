@@ -4,7 +4,7 @@ import { apiFetch, downloadExport } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { Card } from '../components/ui/Card';
 import { Table, Thead, Th, Tbody, Tr, Td } from '../components/ui/Table';
-import { Select } from '../components/ui/Input';
+import { Input, Select } from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { EmptyState, PageSpinner } from '../components/ui/Spinner';
 import { StatusBadge, PeriodoBadge, PerfilBadge } from '../components/ui/Badge';
@@ -22,6 +22,8 @@ export default function AcompanhamentoPage() {
   const [periodo, setPeriodo] = useState('todas');
   const [usuarioId, setUsuarioId] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
   const [openId, setOpenId] = useState(null);
 
   const load = useCallback(async () => {
@@ -29,11 +31,13 @@ export default function AcompanhamentoPage() {
     let url = `/api/rotinas/?periodo=${periodo}`;
     if (usuarioId) url += `&usuario_id=${usuarioId}`;
     if (statusFilter) url += `&status=${statusFilter}`;
+    if (dataInicio) url += `&data_inicio=${dataInicio}`;
+    if (dataFim) url += `&data_fim=${dataFim}`;
     const [r, ur] = await Promise.all([apiFetch(url), apiFetch('/api/usuarios/?status=ativo')]);
     if (r?.ok) setRotinas(r.data);
     if (ur?.ok) setUsuarios(ur.data);
     setLoading(false);
-  }, [periodo, usuarioId, statusFilter]);
+  }, [periodo, usuarioId, statusFilter, dataInicio, dataFim]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -43,6 +47,8 @@ export default function AcompanhamentoPage() {
     let url = `/api/rotinas/export?periodo=${periodo}`;
     if (usuarioId) url += `&usuario_id=${usuarioId}`;
     if (statusFilter) url += `&status=${statusFilter}`;
+    if (dataInicio) url += `&data_inicio=${dataInicio}`;
+    if (dataFim) url += `&data_fim=${dataFim}`;
     downloadExport(url, `acompanhamento_${periodo}.csv`).catch(() => toast('Erro ao exportar', 'error'));
   };
 
@@ -69,6 +75,8 @@ export default function AcompanhamentoPage() {
           <option value="concluida">Concluída</option>
           <option value="nao_realizada">Não Realizada</option>
         </Select>
+        <Input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} className="w-40" title="Data início" />
+        <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} className="w-40" title="Data fim" />
         <Button variant="secondary" icon={Download} onClick={exportar} className="ml-auto">Exportar CSV</Button>
       </div>
 
