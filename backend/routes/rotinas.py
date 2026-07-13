@@ -329,6 +329,7 @@ def listar():
 
     usuario_id = request.args.get('usuario_id', type=int)
     regional_id = request.args.get('regional_id', type=int)
+    atividade_id = request.args.get('atividade_id', type=int)
     periodicidade = request.args.get('periodicidade')
     status = request.args.get('status')
     periodo = request.args.get('periodo', 'semanal')
@@ -343,6 +344,8 @@ def listar():
     query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id)
     if cond is not None:
         query = query.filter(cond)
+    if atividade_id:
+        query = query.filter(Rotina.atividade_id == atividade_id)
 
     # Visibilidade por hierarquia
     if me.perfil == 'admin':
@@ -852,6 +855,7 @@ def exportar_rotinas():
 
     usuario_id = request.args.get('usuario_id', type=int)
     regional_id = request.args.get('regional_id', type=int)
+    atividade_id = request.args.get('atividade_id', type=int)
     periodicidade = request.args.get('periodicidade')
     status = request.args.get('status')
     periodo = request.args.get('periodo', 'semanal')
@@ -865,6 +869,8 @@ def exportar_rotinas():
     query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id)
     if cond is not None:
         query = query.filter(cond)
+    if atividade_id:
+        query = query.filter(Rotina.atividade_id == atividade_id)
 
     if me.perfil == 'admin':
         if regional_id:

@@ -18,13 +18,19 @@ export default function AcompanhamentoPage() {
   const { toast } = useToast();
   const [rotinas, setRotinas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [atividades, setAtividades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState('todas');
   const [usuarioId, setUsuarioId] = useState('');
+  const [atividadeId, setAtividadeId] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [openId, setOpenId] = useState(null);
+
+  useEffect(() => {
+    apiFetch('/api/atividades/').then(a => { if (a?.ok) setAtividades(a.data); });
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,6 +39,7 @@ export default function AcompanhamentoPage() {
     // Stand so apareceriam no proprio dia em que foram criadas.
     let url = `/api/rotinas/?periodo=${periodo}&historico=1`;
     if (usuarioId) url += `&usuario_id=${usuarioId}`;
+    if (atividadeId) url += `&atividade_id=${atividadeId}`;
     if (statusFilter) url += `&status=${statusFilter}`;
     if (dataInicio) url += `&data_inicio=${dataInicio}`;
     if (dataFim) url += `&data_fim=${dataFim}`;
@@ -40,7 +47,7 @@ export default function AcompanhamentoPage() {
     if (r?.ok) setRotinas(r.data);
     if (ur?.ok) setUsuarios(ur.data);
     setLoading(false);
-  }, [periodo, usuarioId, statusFilter, dataInicio, dataFim]);
+  }, [periodo, usuarioId, atividadeId, statusFilter, dataInicio, dataFim]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -49,6 +56,7 @@ export default function AcompanhamentoPage() {
   const exportar = () => {
     let url = `/api/rotinas/export?periodo=${periodo}&historico=1`;
     if (usuarioId) url += `&usuario_id=${usuarioId}`;
+    if (atividadeId) url += `&atividade_id=${atividadeId}`;
     if (statusFilter) url += `&status=${statusFilter}`;
     if (dataInicio) url += `&data_inicio=${dataInicio}`;
     if (dataFim) url += `&data_fim=${dataFim}`;
@@ -69,6 +77,12 @@ export default function AcompanhamentoPage() {
           <option value="">Todos os Usuários</option>
           {usuarios.map(u => (
             <option key={u.id} value={u.id}>{u.nome} ({PERFIL_LABELS[u.perfil] || u.perfil})</option>
+          ))}
+        </Select>
+        <Select value={atividadeId} onChange={e => setAtividadeId(e.target.value)} className="w-56">
+          <option value="">Todas as Atividades</option>
+          {atividades.map(a => (
+            <option key={a.id} value={a.id}>{a.nome} ({PERFIL_LABELS[a.perfil] || a.perfil})</option>
           ))}
         </Select>
         <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-44">
