@@ -642,7 +642,6 @@ COLUNAS_FORMULARIO_COMERCIAL = [
     'Descrição da Causa', 'Necessita Apoio', 'Área de Apoio', 'Motivo Apoio',
     'Objetivo Atingido', 'Próximos Passos',
     'Qtde Evidências', 'Qtde Participantes', 'Qtde Ações no Plano',
-    'Relatório Customizado',
 ]
 
 
@@ -650,28 +649,42 @@ def _is_list_of_dicts(val):
     return isinstance(val, list) and all(isinstance(item, dict) for item in val)
 
 
-def _linha_formulario_comercial(r):
-    """Wrapper seguro: uma linha com formato inesperado não pode derrubar a
-    exportação inteira (já aconteceu em produção). Se o achatamento falhar por
-    qualquer motivo não previsto, devolve uma linha em branco com o JSON bruto
-    jogado na coluna 'Relatório Customizado' em vez de propagar a exceção."""
-    try:
-        return _achatar_formulario_comercial(r)
-    except Exception:
-        linha = [''] * (len(COLUNAS_FORMULARIO_COMERCIAL) - 1)
-        return linha + [f"[erro ao processar relatório] {r.formulario_comercial or ''}"[:500]]
+def _formatar_valor_customizado(val):
+    """Formata um valor de campo customizado (fora do relatório padrão comercial)
+    para caber numa única célula do CSV: dicts (inclusive aninhados, ex.: itens de
+    checklist) viram 'k: v, k: v', listas viram '[k: v, ...]; [k: v, ...]' e o
+    resto vira texto simples. Recursivo para suportar estruturas aninhadas
+    (ex.: lista de empreendimentos, cada um com um dict de itens de checklist)."""
+    if isinstance(val, dict):
+        pares = [f"{k}: {_formatar_valor_customizado(v)}" for k, v in val.items() if v not in (None, '', [], {})]
+        return ", ".join(pares)
+    if isinstance(val, list):
+        partes = []
+        for item in val:
+            if isinstance(item, dict):
+                item_str = _formatar_valor_customizado(item)
+                if item_str:
+                    partes.append(f"[{item_str}]")
+            elif isinstance(item, list):
+                partes.append(_formatar_valor_customizado(item))
+            else:
+                partes.append(str(item))
+        return "; ".join(partes)
+    return val
 
 
 def _achatar_formulario_comercial(r):
-    """Achata o formulario_comercial (JSON, formato varia por perfil/atividade) nas
-    colunas de COLUNAS_FORMULARIO_COMERCIAL. Campos fora do relatório padrão comercial
-    (relatórios de SR/SP/CD/GV) caem na coluna 'Relatório Customizado' como texto.
+    """Achata o formulario_comercial (JSON, formato varia por perfil/atividade) em
+    (linha_fixa, campos_customizados): linha_fixa segue COLUNAS_FORMULARIO_COMERCIAL;
+    campos_customizados é um dict {chave: valor} com os campos fora do relatório
+    padrão comercial (relatórios de SR/SP/CD/GV) — cada chave vira sua própria coluna
+    dinâmica no export (ver _colunas_e_linhas_formulario), em vez de um resumo único.
 
     Os relatórios de SR/SP/CD/GV reaproveitam nomes de campo do relatório padrão
     (ex.: 'participantes', 'resultados') com formatos diferentes (texto solto em vez
     de lista de dicts, lista em vez de dict de indicadores). Por isso cada campo do
     padrão só é tratado como tal se realmente tiver o formato esperado; caso
-    contrário cai no dump genérico de 'Relatório Customizado' em vez de quebrar."""
+    contrário cai nos campos customizados em vez de quebrar."""
     try:
         f = json.loads(r.formulario_comercial) if r.formulario_comercial else {}
         if not isinstance(f, dict):
@@ -708,28 +721,11 @@ def _achatar_formulario_comercial(r):
     if plano:
         campos_padrao.append('plano_acao')
 
-    custom_keys = [k for k in f.keys() if k not in campos_padrao]
-    custom_parts = []
-    for k in custom_keys:
-        val = f[k]
-        if isinstance(val, list):
-            list_parts = []
-            for item in val:
-                if isinstance(item, dict):
-                    item_str = ", ".join(f"{ik}: {iv}" for ik, iv in item.items() if iv)
-                    if item_str:
-                        list_parts.append(f"[{item_str}]")
-                else:
-                    list_parts.append(str(item))
-            custom_parts.append(f"{k}: " + "; ".join(list_parts))
-        elif isinstance(val, dict):
-            item_str = ", ".join(f"{ik}: {iv}" for ik, iv in val.items() if iv)
-            custom_parts.append(f"{k}: {item_str}")
-        else:
-            custom_parts.append(f"{k}: {val}")
-    custom_summary = " | ".join(custom_parts)
+    campos_customizados = {
+        k: _formatar_valor_customizado(v) for k, v in f.items() if k not in campos_padrao
+    }
 
-    return [
+    linha_fixa = [
         f.get('categoria', ''),
         f.get('empreendimento', ''),
         f.get('data_execucao', ''),
@@ -756,8 +752,44 @@ def _achatar_formulario_comercial(r):
         len(r.evidencias),
         len([p for p in participantes if p.get('nome')]),
         len([a for a in plano if a.get('acao')]),
-        custom_summary,
     ]
+    return linha_fixa, campos_customizados
+
+
+def _achatar_formulario_comercial_seguro(r):
+    """Wrapper seguro: uma linha com formato inesperado não pode derrubar a
+    exportação inteira (já aconteceu em produção). Se o achatamento falhar por
+    qualquer motivo não previsto, devolve uma linha em branco com o JSON bruto
+    num campo customizado 'erro' em vez de propagar a exceção."""
+    try:
+        return _achatar_formulario_comercial(r)
+    except Exception:
+        linha_fixa = [''] * len(COLUNAS_FORMULARIO_COMERCIAL)
+        erro = {'erro': f"[erro ao processar relatório] {r.formulario_comercial or ''}"[:500]}
+        return linha_fixa, erro
+
+
+def _colunas_e_linhas_formulario(rotinas):
+    """Monta as colunas do formulário comercial para um export: COLUNAS_FORMULARIO_COMERCIAL
+    (fixas) seguidas de uma coluna por campo customizado que aparecer nas rotinas exportadas
+    (dinâmico — calculado a partir dos dados desta chamada, não de um schema fixo). Retorna
+    (colunas, linhas) prontos para concatenar após as colunas base de cada export."""
+    linhas_fixas = []
+    campos_por_linha = []
+    chaves_customizadas = set()
+    for r in rotinas:
+        linha_fixa, campos = _achatar_formulario_comercial_seguro(r)
+        linhas_fixas.append(linha_fixa)
+        campos_por_linha.append(campos)
+        chaves_customizadas.update(campos.keys())
+
+    chaves_ordenadas = sorted(chaves_customizadas)
+    colunas = [*COLUNAS_FORMULARIO_COMERCIAL, *chaves_ordenadas]
+    linhas = [
+        [*linha_fixa, *[campos.get(k, '') for k in chaves_ordenadas]]
+        for linha_fixa, campos in zip(linhas_fixas, campos_por_linha)
+    ]
+    return colunas, linhas
 
 
 def _export_csv(nome_arquivo, cabecalho, linhas):
@@ -819,6 +851,7 @@ def exportar_rotinas():
         query = query.filter(Rotina.status == status)
 
     rotinas = query.order_by(Rotina.periodo_inicio.desc()).all()
+    colunas_form, linhas_form = _colunas_e_linhas_formulario(rotinas)
     linhas = [[
         r.usuario.nome if r.usuario else '',
         r.atividade.nome if r.atividade else '',
@@ -831,11 +864,11 @@ def exportar_rotinas():
         r.justificativa or '',
         r.acao_corretiva or '',
         len(r.evidencias),
-        *_linha_formulario_comercial(r),
-    ] for r in rotinas]
+        *linhas_form[i],
+    ] for i, r in enumerate(rotinas)]
     return _export_csv(
         f'rotinas_{periodo}.csv',
-        ['Usuario', 'Atividade', 'Periodicidade', 'Status', 'Periodo Inicio', 'Periodo Fim', 'Conclusao', 'Comentario', 'Justificativa', 'Plano Acao', 'Qtde Evidencias', *COLUNAS_FORMULARIO_COMERCIAL],
+        ['Usuario', 'Atividade', 'Periodicidade', 'Status', 'Periodo Inicio', 'Periodo Fim', 'Conclusao', 'Comentario', 'Justificativa', 'Plano Acao', 'Qtde Evidencias', *colunas_form],
         linhas
     )
 
@@ -1390,11 +1423,12 @@ def exportar_relatorios_preenchimento():
         ))
 
     rotinas = query.order_by(Rotina.atualizado_em.desc()).all()
+    colunas_form, linhas_form = _colunas_e_linhas_formulario(rotinas)
 
     cabecalho = [
         'Colaborador', 'Regional', 'Cargo', 'Atividade', 'Periodicidade',
         'Período Início', 'Período Fim', 'Status', 'Status Aprovação',
-        *COLUNAS_FORMULARIO_COMERCIAL,
+        *colunas_form,
     ]
 
     linhas = [[
@@ -1407,8 +1441,8 @@ def exportar_relatorios_preenchimento():
         r.periodo_fim.isoformat() if r.periodo_fim else '',
         r.status or '',
         r.status_aprovacao or '',
-        *_linha_formulario_comercial(r),
-    ] for r in rotinas]
+        *linhas_form[i],
+    ] for i, r in enumerate(rotinas)]
 
     return _export_csv('relatorios_preenchimento.csv', cabecalho, linhas)
 
