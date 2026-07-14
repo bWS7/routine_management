@@ -141,7 +141,14 @@ def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim
     de rotinas. Retorna None quando não há nenhuma restrição de período a aplicar
     (chamador deve pular o .filter() nesse caso).
 
-    Com data_inicio/data_fim: filtro por intervalo de datas explícito.
+    Com data_inicio/data_fim: filtro pelo período próprio de cada rotina (seu
+    periodo_inicio e periodo_fim) contido no intervalo escolhido — não por
+    sobreposição. Contido (em vez de sobreposição) é proposital: com sobreposição,
+    uma janela curta (ex.: 01/07 a 02/07) também traria rotinas semanais/quinzenais/
+    mensais cujo período apenas toca a borda da janela (ex.: uma semanal de 29/06 a
+    05/07), inundando o resultado e escondendo as diárias que o usuário queria ver
+    (ex.: Checklist de Abertura do Stand, cujo período é o próprio dia). Mesmo
+    critério já usado no filtro de datas de Relatórios de Preenchimento.
 
     Com historico=True (sem data_inicio/data_fim): sem nenhuma restrição de período
     — histórico completo, só filtrando por tipo de periodicidade se um tipo
@@ -161,9 +168,9 @@ def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim
     if data_inicio_str or data_fim_str:
         condicoes = []
         if data_inicio_str:
-            condicoes.append(Rotina.periodo_fim >= date.fromisoformat(data_inicio_str))
+            condicoes.append(Rotina.periodo_inicio >= date.fromisoformat(data_inicio_str))
         if data_fim_str:
-            condicoes.append(Rotina.periodo_inicio <= date.fromisoformat(data_fim_str))
+            condicoes.append(Rotina.periodo_fim <= date.fromisoformat(data_fim_str))
         if periodo != 'todas':
             condicoes.append(Rotina.periodicidade == periodo)
         return and_(*condicoes) if condicoes else None
