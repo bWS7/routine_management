@@ -393,3 +393,38 @@ class AprovacaoRotina(db.Model):
             'duracao_revisao_segundos': self.duracao_revisao_segundos,
             'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None
         }
+
+
+class FechamentoPeriodo(db.Model):
+    """Snapshot do percentual de execução de um usuário num período (semana/mês)
+    já encerrado — gravado só depois que a folga de conclusão (e a janela de
+    reenvio pós-reprovação) já expiraram, pra não travar um número que uma
+    aprovação tardia ainda poderia mudar. Dá uma série histórica estável, sem
+    precisar reconsultar Rotina toda vez (base pra tendência de aderência)."""
+    __tablename__ = 'fechamentos_periodo'
+    __table_args__ = (
+        db.UniqueConstraint('usuario_id', 'periodicidade', 'periodo_inicio', name='uq_fechamento_usuario_periodo'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    periodicidade = db.Column(db.String(20), nullable=False)
+    periodo_inicio = db.Column(db.Date, nullable=False)
+    periodo_fim = db.Column(db.Date, nullable=False)
+    total = db.Column(db.Integer, nullable=False)
+    concluidas = db.Column(db.Integer, nullable=False)
+    percentual_execucao = db.Column(db.Float, nullable=False)
+    fechado_em = db.Column(db.DateTime, default=get_now_br)
+    usuario = db.relationship('Usuario', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'periodicidade': self.periodicidade,
+            'periodo_inicio': self.periodo_inicio.isoformat() if self.periodo_inicio else None,
+            'periodo_fim': self.periodo_fim.isoformat() if self.periodo_fim else None,
+            'total': self.total,
+            'concluidas': self.concluidas,
+            'percentual_execucao': self.percentual_execucao,
+            'fechado_em': self.fechado_em.replace(tzinfo=timezone.utc).isoformat() if self.fechado_em else None,
+        }

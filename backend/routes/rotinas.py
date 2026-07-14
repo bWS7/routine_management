@@ -8,7 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from backend.audit import log_audit
 from backend.utils.dates import get_now_br
-from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog, GRACE_DAYS_BY_PERIODICIDADE, GRACE_DAYS_REENVIO
+from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog, FechamentoPeriodo, GRACE_DAYS_BY_PERIODICIDADE, GRACE_DAYS_REENVIO
 from backend.constants import atividade_requer_aprovacao
 from backend.extensions import db
 from datetime import date, timedelta, datetime, timezone
@@ -375,6 +375,50 @@ def ensure_rotinas_atuais(usuario, referencia=None):
     return criadas
 
 
+def fechar_periodos_pendentes(usuario):
+    """Grava um FechamentoPeriodo (snapshot) pra qualquer período do usuário cuja
+    folga de conclusão E janela de reenvio pós-reprovação já tenham expirado
+    hoje — e que ainda não tenha um fechamento gravado. Idempotente (não refecha
+    o que já foi fechado), chamado sob demanda, mesmo padrão de
+    ensure_rotinas_atuais (sem agendador externo necessário pra esta fase — ver
+    Fase 4a do plano pra cobertura independente de login)."""
+    hoje = date.today()
+    periodos = db.session.query(
+        Rotina.periodicidade, Rotina.periodo_inicio, Rotina.periodo_fim
+    ).filter(
+        Rotina.usuario_id == usuario.id,
+        Rotina.periodo_fim < hoje,
+    ).distinct().all()
+
+    fechados = 0
+    for periodicidade, periodo_inicio, periodo_fim in periodos:
+        grace = GRACE_DAYS_BY_PERIODICIDADE.get(periodicidade, 0)
+        prazo_final = periodo_fim + timedelta(days=grace + GRACE_DAYS_REENVIO)
+        if hoje <= prazo_final:
+            continue  # ainda dentro da folga ou da janela de reenvio pós-reprovação
+
+        ja_existe = FechamentoPeriodo.query.filter_by(
+            usuario_id=usuario.id, periodicidade=periodicidade, periodo_inicio=periodo_inicio
+        ).first()
+        if ja_existe:
+            continue
+
+        rotinas = Rotina.query.filter_by(
+            usuario_id=usuario.id, periodicidade=periodicidade, periodo_inicio=periodo_inicio
+        ).all()
+        stats = _stats_execucao(rotinas)
+        db.session.add(FechamentoPeriodo(
+            usuario_id=usuario.id, periodicidade=periodicidade,
+            periodo_inicio=periodo_inicio, periodo_fim=periodo_fim,
+            total=stats['total'], concluidas=stats['concluidas'],
+            percentual_execucao=stats['percentual_execucao'],
+        ))
+        fechados += 1
+    if fechados:
+        db.session.commit()
+    return fechados
+
+
 @rotinas_bp.route('/', methods=['GET'])
 @jwt_required()
 def listar():
@@ -382,6 +426,9 @@ def listar():
 
     # Geração automática das rotinas do período atual do próprio usuário (Seção 3).
     ensure_rotinas_atuais(me)
+    # Fecha (grava snapshot) períodos anteriores do próprio usuário cuja folga já
+    # expirou, pra alimentar o histórico de aderência (Fase 3).
+    fechar_periodos_pendentes(me)
 
     usuario_id = request.args.get('usuario_id', type=int)
     regional_id = request.args.get('regional_id', type=int)
@@ -740,6 +787,23 @@ def minha_aderencia():
         **stats,
         'anterior': anterior,
     })
+
+
+@rotinas_bp.route('/minha-aderencia/historico', methods=['GET'])
+@jwt_required()
+def minha_aderencia_historico():
+    """Últimos fechamentos (semanas/meses já encerrados) do usuário logado —
+    base pra tendência de aderência (Fase 3). Fecha qualquer período pendente
+    antes de listar, pra não depender de já ter passado por listar()."""
+    me = get_current_user()
+    fechar_periodos_pendentes(me)
+
+    limite = request.args.get('limite', 8, type=int)
+    periodicidade = request.args.get('periodicidade', 'semanal')
+    fechamentos = FechamentoPeriodo.query.filter_by(
+        usuario_id=me.id, periodicidade=periodicidade
+    ).order_by(FechamentoPeriodo.periodo_inicio.desc()).limit(limite).all()
+    return jsonify([f.to_dict() for f in reversed(fechamentos)])
 
 
 COLUNAS_FORMULARIO_COMERCIAL = [
