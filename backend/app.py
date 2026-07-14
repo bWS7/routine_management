@@ -9,7 +9,7 @@ from backend.routes.usuarios import usuarios_bp
 from backend.routes.regionais import regionais_bp
 from backend.routes.empreendimentos import empreendimentos_bp
 from backend.routes.atividades import atividades_bp
-from backend.routes.rotinas import rotinas_bp
+from backend.routes.rotinas import rotinas_bp, reconciliar_semanas_mes_atual
 
 
 def _get_database_url():
@@ -125,6 +125,7 @@ def create_app():
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         db.create_all()
         _ensure_runtime_columns()
+        reconciliar_semanas_mes_atual()
         _seed_initial_data()
         _seed_empreendimentos()
 

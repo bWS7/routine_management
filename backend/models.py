@@ -225,11 +225,12 @@ class Rotina(db.Model):
         periodicidade = self.periodicidade or (self.atividade.periodicidade if self.atividade else None)
 
         if periodicidade == 'semanal':
-            # Âncora na quinta-feira (ISO): a semana seg–dom pertence ao mês/ano
-            # da sua quinta-feira, e o número é a sua posição nesse mês.
-            quinta = inicio + timedelta(days=3)
-            semana = (quinta.day - 1) // 7 + 1
-            return f"Semana {semana} - {MESES_PT[quinta.month - 1]}/{quinta.year}"
+            # Semana de calendário fixa (01-07/08-14/15-21/22-fim, ver
+            # get_periodo em routes/rotinas.py) — sempre dentro do mesmo mês do
+            # seu início, sem precisar de âncora especial pra semanas que cruzam
+            # a virada do mês (isso só acontecia com semana ISO segunda-domingo).
+            semana = min(4, (inicio.day - 1) // 7 + 1)
+            return f"Semana {semana} - {MESES_PT[inicio.month - 1]}/{inicio.year}"
         if periodicidade == 'quinzenal':
             quinzena = 1 if inicio.day <= 15 else 2
             return f"{quinzena}ª Quinzena - {MESES_PT[inicio.month - 1]}/{inicio.year}"

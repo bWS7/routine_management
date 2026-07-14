@@ -71,8 +71,19 @@ def get_periodo(tipo, referencia=None):
         inicio = hoje
         fim = hoje
     elif tipo == 'semanal':
-        inicio = hoje - timedelta(days=hoje.weekday())
-        fim = inicio + timedelta(days=6)
+        # Semana de calendário fixa (não ISO segunda-domingo): 01-07, 08-14,
+        # 15-21, 22-fim do mês — mesmo espírito do quinzenal abaixo (âncora no
+        # dia do mês, não no dia da semana). A semana 4 é sempre a mais longa
+        # (7 a 10 dias, conforme o mês).
+        ultimo_dia_mes = (hoje.replace(day=1) + relativedelta(months=1)) - timedelta(days=1)
+        if hoje.day <= 7:
+            inicio, fim = hoje.replace(day=1), hoje.replace(day=7)
+        elif hoje.day <= 14:
+            inicio, fim = hoje.replace(day=8), hoje.replace(day=14)
+        elif hoje.day <= 21:
+            inicio, fim = hoje.replace(day=15), hoje.replace(day=21)
+        else:
+            inicio, fim = hoje.replace(day=22), ultimo_dia_mes
     elif tipo == 'quinzenal':
         if hoje.day <= 15:
             inicio = hoje.replace(day=1)
@@ -86,6 +97,83 @@ def get_periodo(tipo, referencia=None):
         ultimo = (hoje.replace(day=1) + relativedelta(months=1)) - timedelta(days=1)
         fim = ultimo
     return inicio, fim
+
+
+def _semanas_do_mes(referencia):
+    """As 4 semanas de calendário fixas do mês que contém `referencia` (mesmos
+    limites de get_periodo('semanal', ...)), como lista de (numero, inicio, fim).
+    Reaproveitado pela reconciliação de dados (Fase A) e pelo endpoint de
+    aderência mensal (Fase B)."""
+    primeiro_dia_mes = referencia.replace(day=1)
+    ultimo_dia_mes = (primeiro_dia_mes + relativedelta(months=1)) - timedelta(days=1)
+    limites = []
+    for numero, dia_inicio in enumerate((1, 8, 15, 22), start=1):
+        inicio = primeiro_dia_mes.replace(day=dia_inicio)
+        fim = primeiro_dia_mes.replace(day=dia_inicio + 6) if numero < 4 else ultimo_dia_mes
+        limites.append((numero, inicio, fim))
+    return limites
+
+
+def reconciliar_semanas_mes_atual():
+    """Corrige, de forma idempotente, o periodo_inicio/periodo_fim de rotinas
+    semanais do MÊS CORRENTE que foram geradas sob o esquema antigo (semana ISO
+    segunda-domingo) antes da redefinição para semanas de calendário fixas (ver
+    get_periodo). Só mexe no mês corrente — meses anteriores, já históricos,
+    ficam como estão.
+
+    Nunca cria nem apaga rotina: só corrige a data de UMA rotina já existente
+    (UPDATE no mesmo registro), preservando status/comentário/evidências/
+    relatório/histórico — que continuam ligados pelo mesmo id. Se por acaso já
+    existir outra rotina (mesmo usuário+atividade) exatamente na semana nova de
+    destino — colisão extremamente rara, só possível se duas rotinas antigas de
+    semanas ISO diferentes caírem na mesma semana nova —, essa rotina é pulada
+    em vez de mesclada ou sobrescrita, para nunca apagar dado silenciosamente.
+
+    Chamada uma vez no startup da aplicação (mesmo padrão de
+    _ensure_runtime_columns em app.py), antes de qualquer rotina ser gerada sob
+    o esquema novo — evita a corrida em que uma rotina antiga (data errada) e
+    uma nova (criada por engano pra mesma semana) coexistiriam duplicadas."""
+    hoje = date.today()
+    primeiro_dia_mes = hoje.replace(day=1)
+    ultimo_dia_mes = (primeiro_dia_mes + relativedelta(months=1)) - timedelta(days=1)
+    semanas = _semanas_do_mes(hoje)
+    limites_validos = {(inicio, fim) for _, inicio, fim in semanas}
+
+    candidatas = Rotina.query.filter(
+        Rotina.periodicidade == 'semanal',
+        Rotina.periodo_inicio >= primeiro_dia_mes,
+        Rotina.periodo_inicio <= ultimo_dia_mes,
+    ).all()
+
+    corrigidas = 0
+    for r in candidatas:
+        if (r.periodo_inicio, r.periodo_fim) in limites_validos:
+            continue  # já está no esquema novo (geração recente ou reconciliação anterior)
+
+        novo_inicio = novo_fim = None
+        for _, inicio, fim in semanas:
+            if inicio <= r.periodo_inicio <= fim:
+                novo_inicio, novo_fim = inicio, fim
+                break
+        if novo_inicio is None:
+            continue  # não deveria acontecer (toda data do mês cai em alguma semana) — pula por segurança
+
+        conflito = Rotina.query.filter(
+            Rotina.id != r.id,
+            Rotina.usuario_id == r.usuario_id,
+            Rotina.atividade_id == r.atividade_id,
+            Rotina.periodo_inicio == novo_inicio,
+        ).first()
+        if conflito:
+            continue  # não perde dado: deixa como está pra revisão manual em vez de mesclar/sobrescrever
+
+        r.periodo_inicio = novo_inicio
+        r.periodo_fim = novo_fim
+        corrigidas += 1
+
+    if corrigidas:
+        db.session.commit()
+    return corrigidas
 
 
 def filtro_periodo_atual(model, referencia):
