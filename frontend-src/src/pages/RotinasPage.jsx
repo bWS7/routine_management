@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText, Info, UploadCloud } from 'lucide-react';
+import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText, Info, UploadCloud, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import FormularioComercialModal from '../components/shared/FormularioComercialModal';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -545,34 +545,83 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   );
 }
 
+// Data (YYYY-MM-DD) de hoje, no fuso local — usada como base pra navegação de período.
+function todayIso() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// Desloca uma data de referência aproximadamente um período pra frente/trás,
+// conforme a periodicidade selecionada — usado pelas setas "período anterior/seguinte"
+// no modo Atual. Não precisa ser exato (o backend resolve os limites reais do
+// período a partir da data), só precisa cair dentro do período vizinho certo.
+function deslocarReferencia(iso, periodo, direcao) {
+  const d = new Date(`${iso}T00:00:00`);
+  if (periodo === 'diaria') d.setDate(d.getDate() + direcao);
+  else if (periodo === 'quinzenal') d.setDate(d.getDate() + direcao * 15);
+  else if (periodo === 'mensal') d.setMonth(d.getMonth() + direcao);
+  else d.setDate(d.getDate() + direcao * 7); // semanal ou todas
+  return d.toISOString().split('T')[0];
+}
+
 // ─── Rotinas Page ─────────────────────────────────────────────
 export default function RotinasPage() {
   const { currentUser } = useAuth();
   const [rotinas, setRotinas] = useState([]);
   const [aderencia, setAderencia] = useState(null);
+  const [tendencia, setTendencia] = useState([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState('todas');
   const [statusFilter, setStatusFilter] = useState('');
   const [openId, setOpenId] = useState(null);
+  // modo 'atual': lista do período corrente (comportamento de sempre), navegável
+  // por data_ref. modo 'historico': sem restrição de período, com filtro de
+  // intervalo de datas opcional — pra ver semanas já fechadas/concluídas.
+  const [modo, setModo] = useState('atual');
+  const [dataRef, setDataRef] = useState(''); // vazio = hoje (não força data_ref na URL)
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     let url = `/api/rotinas/?periodo=${periodo}&usuario_id=${currentUser.id}`;
     if (statusFilter) url += `&status=${statusFilter}`;
-    const [r, adh] = await Promise.all([
+    let adhUrl = `/api/rotinas/minha-aderencia?periodo=${periodo}`;
+    if (modo === 'historico') {
+      url += '&historico=1';
+      if (dataInicio) url += `&data_inicio=${dataInicio}`;
+      if (dataFim) url += `&data_fim=${dataFim}`;
+    } else if (dataRef) {
+      url += `&data_ref=${dataRef}`;
+      adhUrl += `&data_ref=${dataRef}`;
+    }
+    const [r, adh, tend] = await Promise.all([
       apiFetch(url),
-      apiFetch(`/api/rotinas/minha-aderencia?periodo=${periodo}`),
+      // Aderência só faz sentido pro período corrente (mesmo que navegado) —
+      // no modo Histórico o intervalo pode abranger várias semanas, sem um
+      // "período" único pra calcular percentual.
+      modo === 'atual' ? apiFetch(adhUrl) : Promise.resolve(null),
+      // Tendência (fechamentos já persistidos) só aparece no modo Histórico.
+      modo === 'historico' ? apiFetch('/api/rotinas/minha-aderencia/historico?periodicidade=semanal') : Promise.resolve(null),
     ]);
     if (r?.ok) setRotinas(r.data);
-    if (adh?.ok) setAderencia(adh.data);
+    if (modo === 'atual' && adh?.ok) setAderencia(adh.data);
+    else if (modo === 'historico') setAderencia(null);
+    if (modo === 'historico' && tend?.ok) setTendencia(tend.data);
     setLoading(false);
-  }, [periodo, statusFilter, currentUser]);
+  }, [periodo, statusFilter, currentUser, modo, dataRef, dataInicio, dataFim]);
 
   useEffect(() => { load(); }, [load]);
 
   const exportar = () => {
     let url = `/api/rotinas/export?periodo=${periodo}`;
     if (statusFilter) url += `&status=${statusFilter}`;
+    if (modo === 'historico') {
+      url += '&historico=1';
+      if (dataInicio) url += `&data_inicio=${dataInicio}`;
+      if (dataFim) url += `&data_fim=${dataFim}`;
+    } else if (dataRef) {
+      url += `&data_ref=${dataRef}`;
+    }
     downloadExport(url, `rotinas_${periodo}.csv`).catch(() => {});
   };
 
@@ -594,6 +643,49 @@ export default function RotinasPage() {
           <option value="concluida">Concluida</option>
           <option value="nao_realizada">Não Realizada</option>
         </Select>
+
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
+          <button
+            onClick={() => setModo('atual')}
+            className={`px-3 py-2 text-sm font-medium transition-colors ${modo === 'atual' ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            Atual
+          </button>
+          <button
+            onClick={() => setModo('historico')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${modo === 'historico' ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            <History size={14} /> Histórico
+          </button>
+        </div>
+
+        {modo === 'atual' ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setDataRef(deslocarReferencia(dataRef || todayIso(), periodo, -1))}
+              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors"
+              title="Período anterior"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {dataRef && (
+              <Button variant="secondary" size="xs" onClick={() => setDataRef('')}>Hoje</Button>
+            )}
+            <button
+              onClick={() => setDataRef(deslocarReferencia(dataRef || todayIso(), periodo, 1))}
+              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors"
+              title="Próximo período"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <Input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} className="w-40" title="Data início" />
+            <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} className="w-40" title="Data fim" />
+          </>
+        )}
+
         <Button variant="secondary" icon={Download} onClick={exportar} className="ml-auto">Exportar CSV</Button>
       </div>
 
@@ -609,11 +701,49 @@ export default function RotinasPage() {
             </div>
             <div className="text-right text-sm text-gray-500">
               {aderencia.concluidas} de {aderencia.total} atividades<br />
-              <span className="text-xs">concluídas no período</span>
+              <span className="text-xs">
+                {dataRef ? `período ${fmtDate(aderencia.periodo_inicio)} → ${fmtDate(aderencia.periodo_fim)}` : 'concluídas no período'}
+              </span>
             </div>
           </div>
           <ProgressBar value={aderencia.percentual_execucao}
             color={aderencia.percentual_execucao >= 80 ? 'bg-success' : aderencia.percentual_execucao >= 50 ? 'bg-warning' : 'bg-error'} />
+
+          {/* Período anterior ainda dentro do prazo de tolerância — mostrado
+              separado pra não sumir assim que o período novo é gerado. */}
+          {aderencia.anterior && (
+            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-sm">
+              <span className="text-gray-500">
+                Período anterior <span className="text-gray-400">(prazo até {fmtDate(aderencia.anterior.prazo_final)})</span>
+              </span>
+              <span className={`font-semibold ${
+                aderencia.anterior.percentual_execucao >= 80 ? 'text-success-dark' :
+                aderencia.anterior.percentual_execucao >= 50 ? 'text-warning-dark' : 'text-error-dark'
+              }`}>
+                {aderencia.anterior.percentual_execucao}% ({aderencia.anterior.concluidas} de {aderencia.anterior.total})
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tendência de aderência (semanas já fechadas) — só no modo Histórico */}
+      {modo === 'historico' && tendencia.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Tendência de Aderência (últimas semanas fechadas)</p>
+          <div className="flex items-end gap-2 h-24">
+            {tendencia.map(f => (
+              <div key={f.id} className="flex-1 h-full flex flex-col justify-end items-center gap-1">
+                <span className="text-[10px] font-semibold text-gray-600">{f.percentual_execucao}%</span>
+                <div
+                  className={`w-full rounded-t ${f.percentual_execucao >= 80 ? 'bg-success' : f.percentual_execucao >= 50 ? 'bg-warning' : 'bg-error'}`}
+                  style={{ height: `${Math.max(f.percentual_execucao, 4)}%` }}
+                  title={`${fmtDate(f.periodo_inicio)} → ${fmtDate(f.periodo_fim)}: ${f.concluidas} de ${f.total} (${f.percentual_execucao}%)`}
+                />
+                <span className="text-[10px] text-gray-400">{fmtDate(f.periodo_inicio)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

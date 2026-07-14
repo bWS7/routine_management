@@ -148,6 +148,25 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Período anterior ainda dentro do prazo de tolerância — mostrado separado
+          pra não sumir do dashboard assim que o período novo é gerado. */}
+      {data?.anterior && (
+        <div className="flex items-center justify-between gap-4 bg-white rounded-xl border border-gray-100 shadow-card px-5 py-3.5">
+          <div className="text-sm text-gray-600">
+            <span className="font-medium text-gray-700">Período anterior</span>{' '}
+            <span className="text-gray-400">
+              ({fmtDate(data.anterior.periodo_inicio)} → {fmtDate(data.anterior.periodo_fim)} · prazo até {fmtDate(data.anterior.prazo_final)})
+            </span>
+          </div>
+          <div className={`text-sm font-bold shrink-0 ${
+            data.anterior.percentual_execucao >= 80 ? 'text-success-dark' :
+            data.anterior.percentual_execucao >= 50 ? 'text-warning-dark' : 'text-error-dark'
+          }`}>
+            {data.anterior.percentual_execucao}% ({data.anterior.concluidas} de {data.anterior.total})
+          </div>
+        </div>
+      )}
+
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
