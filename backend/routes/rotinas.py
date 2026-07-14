@@ -860,6 +860,23 @@ def minha_aderencia_historico():
     return jsonify([f.to_dict() for f in reversed(fechamentos)])
 
 
+@rotinas_bp.route('/minha-aderencia/limites', methods=['GET'])
+@jwt_required()
+def minha_aderencia_limites():
+    """Data de início da rotina mais antiga e a data de fim da mais recente do
+    usuário logado — usado pelo front pra limitar a navegação por setas (Fase 1)
+    ao intervalo onde realmente existe atividade, em vez de deixar navegar pra
+    períodos vazios indefinidamente pra frente ou pra trás."""
+    me = get_current_user()
+    from sqlalchemy import func
+    primeira = db.session.query(func.min(Rotina.periodo_inicio)).filter(Rotina.usuario_id == me.id).scalar()
+    ultima = db.session.query(func.max(Rotina.periodo_fim)).filter(Rotina.usuario_id == me.id).scalar()
+    return jsonify({
+        'primeira_data': primeira.isoformat() if primeira else None,
+        'ultima_data': ultima.isoformat() if ultima else None,
+    })
+
+
 COLUNAS_FORMULARIO_COMERCIAL = [
     'Categoria', 'Empreendimento', 'Data Execução', 'Hora Início', 'Hora Término',
     'Objetivo', 'Resumo da Execução', 'Principais Temas',

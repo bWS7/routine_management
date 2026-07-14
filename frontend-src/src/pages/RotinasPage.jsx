@@ -563,6 +563,39 @@ function deslocarReferencia(iso, periodo, direcao) {
   return d.toISOString().split('T')[0];
 }
 
+// Início e fim exatos do período que contém a data de referência, conforme a
+// periodicidade — mesma lógica de get_periodo() no backend. Usado pra mostrar
+// qual período está sendo visto (o rótulo ao lado das setas) e pra saber até
+// onde a navegação pode ir sem passar do intervalo com atividade.
+function limitesPeriodo(iso, periodo) {
+  const d = new Date(`${iso}T00:00:00`);
+  const toIso = dt => dt.toISOString().split('T')[0];
+  let inicio, fim;
+  if (periodo === 'diaria') {
+    inicio = new Date(d);
+    fim = new Date(d);
+  } else if (periodo === 'quinzenal') {
+    if (d.getDate() <= 15) {
+      inicio = new Date(d.getFullYear(), d.getMonth(), 1);
+      fim = new Date(d.getFullYear(), d.getMonth(), 15);
+    } else {
+      inicio = new Date(d.getFullYear(), d.getMonth(), 16);
+      fim = new Date(d.getFullYear(), d.getMonth() + 1, 0); // último dia do mês
+    }
+  } else if (periodo === 'mensal') {
+    inicio = new Date(d.getFullYear(), d.getMonth(), 1);
+    fim = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  } else {
+    // semanal ou todas: semana de segunda a domingo
+    const diasDesdeSegunda = (d.getDay() + 6) % 7;
+    inicio = new Date(d);
+    inicio.setDate(d.getDate() - diasDesdeSegunda);
+    fim = new Date(inicio);
+    fim.setDate(inicio.getDate() + 6);
+  }
+  return { inicio: toIso(inicio), fim: toIso(fim) };
+}
+
 // ─── Rotinas Page ─────────────────────────────────────────────
 export default function RotinasPage() {
   const { currentUser } = useAuth();
@@ -580,6 +613,13 @@ export default function RotinasPage() {
   const [dataRef, setDataRef] = useState(''); // vazio = hoje (não força data_ref na URL)
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
+  // Intervalo (primeira/última data) onde o usuário realmente tem atividade —
+  // usado pra não deixar navegar (setas) pra períodos vazios, pra frente ou pra trás.
+  const [limites, setLimites] = useState(null);
+
+  useEffect(() => {
+    apiFetch('/api/rotinas/minha-aderencia/limites').then(r => { if (r?.ok) setLimites(r.data); });
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -659,27 +699,37 @@ export default function RotinasPage() {
           </button>
         </div>
 
-        {modo === 'atual' ? (
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setDataRef(deslocarReferencia(dataRef || todayIso(), periodo, -1))}
-              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors"
-              title="Período anterior"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            {dataRef && (
-              <Button variant="secondary" size="xs" onClick={() => setDataRef('')}>Hoje</Button>
-            )}
-            <button
-              onClick={() => setDataRef(deslocarReferencia(dataRef || todayIso(), periodo, 1))}
-              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors"
-              title="Próximo período"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        ) : (
+        {modo === 'atual' ? (() => {
+          const janela = limitesPeriodo(dataRef || todayIso(), periodo);
+          const podeVoltar = !limites?.primeira_data || janela.inicio > limites.primeira_data;
+          const podeAvancar = !limites?.ultima_data || janela.fim < limites.ultima_data;
+          return (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => podeVoltar && setDataRef(deslocarReferencia(dataRef || todayIso(), periodo, -1))}
+                disabled={!podeVoltar}
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+                title={podeVoltar ? 'Período anterior' : 'Não há atividade antes deste período'}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-xs font-medium text-gray-600 whitespace-nowrap px-1">
+                {fmtDate(janela.inicio)} → {fmtDate(janela.fim)}
+              </span>
+              {dataRef && (
+                <Button variant="secondary" size="xs" onClick={() => setDataRef('')}>Hoje</Button>
+              )}
+              <button
+                onClick={() => podeAvancar && setDataRef(deslocarReferencia(dataRef || todayIso(), periodo, 1))}
+                disabled={!podeAvancar}
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+                title={podeAvancar ? 'Próximo período' : 'Não há atividade depois deste período'}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          );
+        })() : (
           <>
             <Input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} className="w-40" title="Data início" />
             <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} className="w-40" title="Data fim" />
