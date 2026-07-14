@@ -290,20 +290,12 @@ def marcar_vencidas_nao_realizadas(rotinas, ator_id=None):
     return mudou
 
 
-@rotinas_bp.route('/gerar', methods=['POST'])
-@jwt_required()
-def gerar_rotinas():
-    me = get_current_user()
-    if me.perfil != 'admin':
-        return jsonify({'erro': 'Acesso negado'}), 403
-
-    data = request.get_json() or {}
-    usuario_ids = data.get('usuario_ids')  # Lista de IDs ou None para todos
-    referencia_str = data.get('referencia')
-    periodicidade_filtro = data.get('periodicidade') # 'diaria', 'semanal', 'quinzenal', 'mensal' ou None
-    
-    referencia = date.fromisoformat(referencia_str) if referencia_str else date.today()
-
+def _gerar_rotinas_para_usuarios(usuario_ids=None, referencia=None, periodicidade_filtro=None):
+    """Núcleo da geração de rotinas — reaproveitado pelo endpoint administrativo
+    (/gerar, disparado manualmente por um admin) e pelo endpoint de cron
+    (/interno/gerar-e-fechar, disparado por um agendador externo). Idempotente,
+    mesmo padrão de ensure_rotinas_atuais."""
+    referencia = referencia or date.today()
     query = Usuario.query.filter_by(status='ativo')
     if usuario_ids and isinstance(usuario_ids, list) and len(usuario_ids) > 0:
         query = query.filter(Usuario.id.in_(usuario_ids))
@@ -317,7 +309,7 @@ def gerar_rotinas():
         )
         if periodicidade_filtro and periodicidade_filtro != 'todas':
             cat_query = cat_query.filter_by(periodicidade=periodicidade_filtro)
-        
+
         atividades = cat_query.all()
         for atividade in atividades:
             inicio, fim = get_periodo(atividade.periodicidade, referencia)
@@ -327,18 +319,65 @@ def gerar_rotinas():
                 periodo_inicio=inicio
             ).first()
             if not existe:
-                r = Rotina(
+                db.session.add(Rotina(
                     usuario_id=usuario.id,
                     atividade_id=atividade.id,
                     periodo_inicio=inicio,
                     periodo_fim=fim,
                     periodicidade=atividade.periodicidade
-                )
-                db.session.add(r)
+                ))
                 criadas += 1
 
     db.session.commit()
+    return criadas
+
+
+@rotinas_bp.route('/gerar', methods=['POST'])
+@jwt_required()
+def gerar_rotinas():
+    me = get_current_user()
+    if me.perfil != 'admin':
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    data = request.get_json() or {}
+    usuario_ids = data.get('usuario_ids')  # Lista de IDs ou None para todos
+    referencia_str = data.get('referencia')
+    periodicidade_filtro = data.get('periodicidade') # 'diaria', 'semanal', 'quinzenal', 'mensal' ou None
+    referencia = date.fromisoformat(referencia_str) if referencia_str else date.today()
+
+    criadas = _gerar_rotinas_para_usuarios(usuario_ids, referencia, periodicidade_filtro)
     return jsonify({'mensagem': f'{criadas} rotinas geradas com sucesso', 'total': criadas})
+
+
+@rotinas_bp.route('/interno/gerar-e-fechar', methods=['POST'])
+def gerar_e_fechar_automatico():
+    """Endpoint pra ser chamado por um agendador externo (Cron Schedule do
+    Railway — ver Fase 4a do plano de rotinas), não por usuários logados.
+    Autenticado por segredo estático (env var CRON_SECRET, header
+    X-Cron-Secret), não por JWT — evita depender de um token de usuário que
+    pode expirar/ser revogado.
+
+    Cobre, pra todos os usuários ativos e independente de login: geração das
+    rotinas do período atual, marcação automática de vencidas como não
+    realizadas, e fechamento dos períodos cuja folga já expirou (Fase 3) — hoje
+    essas três coisas só acontecem quando o próprio usuário acessa o app."""
+    secret = os.environ.get('CRON_SECRET')
+    if not secret or request.headers.get('X-Cron-Secret') != secret:
+        return jsonify({'erro': 'Acesso negado'}), 403
+
+    criadas = _gerar_rotinas_para_usuarios()
+
+    rotinas_abertas = Rotina.query.filter(Rotina.status.in_(['nao_iniciada', 'em_andamento'])).all()
+    marcar_vencidas_nao_realizadas(rotinas_abertas)
+
+    fechados = 0
+    for usuario in Usuario.query.filter_by(status='ativo').all():
+        fechados += fechar_periodos_pendentes(usuario)
+
+    return jsonify({
+        'rotinas_geradas': criadas,
+        'periodos_fechados': fechados,
+    })
 
 
 def ensure_rotinas_atuais(usuario, referencia=None):
