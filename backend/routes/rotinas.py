@@ -368,6 +368,13 @@ def rotina_vencida(rotina):
     )
 
 
+def rotina_ainda_nao_liberada(rotina):
+    """O período da rotina ainda não começou (ex.: Semana 3 gerada
+    antecipadamente pelo painel mensal, mas hoje ainda estamos na Semana 2) —
+    bloqueada pra edição/conclusão até a data de início chegar."""
+    return bool(rotina.periodo_inicio and rotina.periodo_inicio > date.today())
+
+
 def rotina_justificada(rotina):
     """Pendência já justificada: justificativa (comentario) e plano de ação (plano_semana) preenchidos."""
     return bool((rotina.comentario or '').strip() and (rotina.plano_semana or '').strip())
@@ -516,6 +523,75 @@ def ensure_rotinas_atuais(usuario, referencia=None):
     return criadas
 
 
+def _dias_do_mes(primeiro_dia_mes, ultimo_dia_mes):
+    """Lista de todas as datas do mês, um dia por vez — usado pela geração
+    antecipada de atividades diárias em ensure_rotinas_mes."""
+    dias = []
+    d = primeiro_dia_mes
+    while d <= ultimo_dia_mes:
+        dias.append(d)
+        d += timedelta(days=1)
+    return dias
+
+
+def ensure_rotinas_mes(usuario, referencia=None):
+    """Gera, de forma idempotente, TODAS as rotinas do MÊS que contém
+    `referencia` para o usuário — as 4 semanas, as 2 quinzenas, o período
+    mensal, e cada dia do mês (não só o período corrente, como
+    ensure_rotinas_atuais). Mesmo check de idempotência (usuario+atividade+
+    periodo_inicio), então nunca duplica o que ensure_rotinas_atuais já tiver
+    criado.
+
+    Isso é o que permite o painel de Aderência Mensal mostrar o total certo
+    pra um período que ainda não chegou (ex.: "Semana 3: 0 de 6" antes do dia
+    15) e a lista de atividades de verdade ao clicar num card futuro — mesmo
+    que bloqueadas pra edição até a data chegar (ver checagem de
+    "ainda não liberada" em atualizar()/upload_evidencia()/salvar_formulario()).
+
+    Chamada só a partir de minha_aderencia_mensal() — é a única tela que
+    precisa do mês inteiro; as demais (listar(), exportar, etc.) continuam
+    usando ensure_rotinas_atuais, que já basta pra elas."""
+    if not usuario or not usuario.perfis_list:
+        return 0
+    referencia = referencia or date.today()
+    primeiro_dia_mes = referencia.replace(day=1)
+    ultimo_dia_mes = (primeiro_dia_mes + relativedelta(months=1)) - timedelta(days=1)
+
+    periodos_por_tipo = {
+        'semanal': [(inicio, fim) for _, inicio, fim in _semanas_do_mes(referencia)],
+        'quinzenal': [
+            get_periodo('quinzenal', primeiro_dia_mes),
+            get_periodo('quinzenal', primeiro_dia_mes.replace(day=16)),
+        ],
+        'mensal': [get_periodo('mensal', referencia)],
+        'diaria': [(dia, dia) for dia in _dias_do_mes(primeiro_dia_mes, ultimo_dia_mes)],
+    }
+
+    atividades = AtividadeCatalogo.query.filter(
+        AtividadeCatalogo.perfil.in_(usuario.perfis_list),
+        AtividadeCatalogo.ativo == True
+    ).all()
+
+    criadas = 0
+    for atividade in atividades:
+        alvos = periodos_por_tipo.get(atividade.periodicidade)
+        if not alvos:
+            continue
+        for inicio, fim in alvos:
+            existe = Rotina.query.filter_by(
+                usuario_id=usuario.id, atividade_id=atividade.id, periodo_inicio=inicio
+            ).first()
+            if not existe:
+                db.session.add(Rotina(
+                    usuario_id=usuario.id, atividade_id=atividade.id,
+                    periodo_inicio=inicio, periodo_fim=fim, periodicidade=atividade.periodicidade,
+                ))
+                criadas += 1
+    if criadas:
+        db.session.commit()
+    return criadas
+
+
 def fechar_periodos_pendentes(usuario):
     """Grava um FechamentoPeriodo (snapshot) pra qualquer período do usuário cuja
     folga de conclusão E janela de reenvio pós-reprovação já tenham expirado
@@ -635,6 +711,9 @@ def atualizar(rid):
     if not can_edit_rotina(me, r):
         return jsonify({'erro': 'Acesso negado'}), 403
 
+    if rotina_ainda_nao_liberada(r):
+        return jsonify({'erro': f'Atividade ainda não liberada. Disponível a partir de {r.periodo_inicio.strftime("%d/%m/%Y")}.'}), 400
+
     data = request.get_json()
     status_anterior = r.status
     vencida_pendente = rotina_vencida(r)
@@ -740,6 +819,8 @@ def upload_evidencia(rid):
         return jsonify({'erro': 'Acesso negado'}), 403
     if rotina_vencida_pendente(rotina):
         return jsonify({'erro': 'Atividade vencida. Nao e possivel anexar evidencias apos o prazo.'}), 400
+    if rotina_ainda_nao_liberada(rotina):
+        return jsonify({'erro': f'Atividade ainda não liberada. Disponível a partir de {rotina.periodo_inicio.strftime("%d/%m/%Y")}.'}), 400
 
     arquivo = request.files.get('arquivo')
     if not arquivo or not arquivo.filename:
@@ -991,6 +1072,11 @@ def minha_aderencia_mensal():
     me = get_current_user()
     data_ref = request.args.get('data_ref')
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
+
+    # Gera o mês inteiro (não só o período corrente) antes de calcular as
+    # categorias — sem isso, um período que ainda não chegou mostraria "0 de 0"
+    # em vez do total real, e clicar num card futuro não acharia nada pra listar.
+    ensure_rotinas_mes(me, referencia)
 
     primeiro_dia_mes = referencia.replace(day=1)
     ultimo_dia_mes = (primeiro_dia_mes + relativedelta(months=1)) - timedelta(days=1)
@@ -1758,6 +1844,8 @@ def salvar_formulario(rid):
     r = Rotina.query.get_or_404(rid)
     if not can_edit_rotina(me, r):
         return jsonify({'erro': 'Acesso negado'}), 403
+    if rotina_ainda_nao_liberada(r):
+        return jsonify({'erro': f'Atividade ainda não liberada. Disponível a partir de {r.periodo_inicio.strftime("%d/%m/%Y")}.'}), 400
     # Em pendência (obrigatória vencida ou já "Não Realizada") o relatório não pode
     # ser preenchido — a atividade só recebe justificativa e plano de ação.
     if rotina_vencida(r) or r.status == 'nao_realizada':

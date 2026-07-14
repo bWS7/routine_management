@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText, Info, UploadCloud, ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { ClipboardList, Download, ExternalLink, Trash2, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, AlertTriangle, Check, X, RefreshCw, FileText, Info, UploadCloud, ChevronLeft, ChevronRight, History, Lock } from 'lucide-react';
 import FormularioComercialModal from '../components/shared/FormularioComercialModal';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -63,7 +63,13 @@ function RotinaCard({ rotina, onClick }) {
             )}
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               <PeriodoBadge periodo={rotina.periodicidade} label={PERIODO_LABELS[rotina.periodicidade]} />
-              <StatusBadge status={displayStatus} label={STATUS_LABELS[displayStatus]} />
+              {rotina.ainda_nao_liberada ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500 font-medium">
+                  <Lock size={10} /> Disponível em {fmtDate(rotina.periodo_inicio)}
+                </span>
+              ) : (
+                <StatusBadge status={displayStatus} label={STATUS_LABELS[displayStatus]} />
+              )}
               {rotina.atividade_obrigatoria && (
                 <span className="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-600 font-medium">Obrigatória</span>
               )}
@@ -280,6 +286,8 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   if (!rotinaId) return null;
 
   const isOverdue = !!rotina?.pendente_prazo;
+  // Período gerado antecipadamente (painel mensal) mas que ainda não começou.
+  const aindaNaoLiberada = !!rotina?.ainda_nao_liberada;
   // Pendência: obrigatória vencida (qualquer status) ou já "Não Realizada".
   // Tratada como não realizada: sem relatório, sem evidência obrigatória.
   const isPendencia = !!rotina?.vencida || status === 'nao_realizada';
@@ -287,10 +295,10 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   // pode visualizar e aprovar, mas nunca preencher o relatório de terceiros.
   const canEdit = currentUser?.perfil === 'admin' ||
                   rotina?.usuario_id === currentUser?.id;
-  const canFill = canEdit && !isOverdue;
+  const canFill = canEdit && !isOverdue && !aindaNaoLiberada;
   const canRegisterOverdue = canEdit && isOverdue;
   // Em pendência (não realizada) o relatório não pode ser preenchido.
-  const canFillReport = canEdit && !isPendencia;
+  const canFillReport = canEdit && !isPendencia && !aindaNaoLiberada;
 
   const prazoReenvioExpirado = rotina?.prazo_reenvio && new Date(rotina.prazo_reenvio + 'T23:59:59') < new Date();
   const canReenviar = rotina?.status_aprovacao === 'reprovada' &&
@@ -308,6 +316,10 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   const planoObrigatorio = status === 'nao_realizada';
 
   const save = async () => {
+    if (aindaNaoLiberada) {
+      toast(`Atividade ainda não liberada. Disponível a partir de ${fmtDate(rotina.periodo_inicio)}.`, 'error');
+      return;
+    }
     if (isOverdue && status !== 'nao_realizada') {
       toast('Atividade vencida. Registre como Não Realizada e preencha o Plano de Ação.', 'error');
       return;
@@ -367,7 +379,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
               {rotina?.formulario_preenchido ? 'Ver Relatório' : 'Preencher Relatório'}
             </Button>
             {canEdit && (
-              <Button onClick={save} loading={saving}>Salvar Alterações</Button>
+              <Button onClick={save} loading={saving} disabled={aindaNaoLiberada}>Salvar Alterações</Button>
             )}
           </>
         ) : (
@@ -379,6 +391,12 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
         <div className="flex justify-center py-12"><div className="h-6 w-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : rotina && (
         <div className="space-y-5">
+          {aindaNaoLiberada && (
+            <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-xl text-sm text-gray-600 border border-gray-200">
+              <Lock size={16} className="shrink-0 mt-0.5" />
+              <span>Atividade ainda não liberada para preenchimento. Disponível a partir de {fmtDate(rotina.periodo_inicio)}.</span>
+            </div>
+          )}
           {isPendencia && (
             <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl text-sm text-red-700 border border-red-200">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
@@ -479,7 +497,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
           </div>
 
           {/* Status */}
-          <Select label="Status" value={status} onChange={e => setStatus(e.target.value)} disabled={!canEdit || isPendencia} required>
+          <Select label="Status" value={status} onChange={e => setStatus(e.target.value)} disabled={!canEdit || isPendencia || aindaNaoLiberada} required>
             <option value="nao_iniciada" disabled={isPendencia}>Não Iniciada</option>
             <option value="em_andamento" disabled={isPendencia}>Em Andamento</option>
             <option value="concluida" disabled={isPendencia}>Concluída</option>
@@ -488,7 +506,7 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
 
           <Textarea label={planoObrigatorio ? 'Justificativa' : 'Comentário'} value={comentario} onChange={e => setComentario(e.target.value)}
             rows={2} placeholder={planoObrigatorio ? 'Justifique por que a atividade não foi realizada...' : 'Observações sobre a execução...'}
-            disabled={!(canFill || canRegisterOverdue)} required />
+            disabled={!(canFill || canRegisterOverdue) || aindaNaoLiberada} required />
 
           <Textarea label={planoObrigatorio ? 'Plano de Ação' : 'Plano da Semana'} value={planoSemana} onChange={e => setPlanoSemana(e.target.value)}
             rows={3} placeholder={planoObrigatorio ? 'Obrigatório: descreva o plano de ação para a atividade não realizada...' : 'Registre o plano da semana...'}

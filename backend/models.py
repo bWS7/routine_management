@@ -293,6 +293,11 @@ class Rotina(db.Model):
                 and prazo_limite
                 and prazo_limite < datetime.now(timezone.utc).date()
             ) if self.atividade else False,
+            # Período gerado antecipadamente (painel de aderência mensal) mas
+            # que ainda não começou — bloqueada pra edição/conclusão até chegar.
+            'ainda_nao_liberada': bool(
+                self.periodo_inicio and self.periodo_inicio > datetime.now(timezone.utc).date()
+            ),
             'evidencias': [e.to_dict() for e in self.evidencias],
             'criado_em': self.criado_em.replace(tzinfo=timezone.utc).isoformat() if self.criado_em else None,
             'atualizado_em': self.atualizado_em.replace(tzinfo=timezone.utc).isoformat() if self.atualizado_em else None
