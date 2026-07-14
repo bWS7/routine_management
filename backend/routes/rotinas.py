@@ -965,6 +965,102 @@ def minha_aderencia_limites():
     })
 
 
+def _stats_periodo_exato(usuario_id, periodicidade, inicio, fim):
+    """Estatísticas de execução de uma categoria com limites exatos (usado pelas
+    semanas/quinzena/mês da aderência mensal) — as rotinas dessa categoria são
+    as que têm periodo_inicio/periodo_fim batendo exatamente com os limites
+    calculados (mesmos limites usados na geração, ver get_periodo)."""
+    rotinas = Rotina.query.filter_by(
+        usuario_id=usuario_id, periodicidade=periodicidade,
+        periodo_inicio=inicio, periodo_fim=fim,
+    ).all()
+    return {**_stats_execucao(rotinas), 'periodo_inicio': inicio.isoformat(), 'periodo_fim': fim.isoformat()}
+
+
+@rotinas_bp.route('/minha-aderencia/mensal', methods=['GET'])
+@jwt_required()
+def minha_aderencia_mensal():
+    """Aderência do mês inteiro do usuário logado, dividida em 6 categorias —
+    Semana 1 a 4 (calendário fixo, ver get_periodo), Quinzenal (soma das duas
+    quinzenas do mês) e Mensal — mais um bucket extra de Atividades Diárias só
+    pra quem tem o perfil Coordenador (cd), fora da soma principal (ver decisão
+    no plano). O percentual do topo é a soma de concluídas / soma de totais das
+    6 categorias (sem contar diárias)."""
+    from sqlalchemy import or_, and_
+
+    me = get_current_user()
+    data_ref = request.args.get('data_ref')
+    referencia = date.fromisoformat(data_ref) if data_ref else date.today()
+
+    primeiro_dia_mes = referencia.replace(day=1)
+    ultimo_dia_mes = (primeiro_dia_mes + relativedelta(months=1)) - timedelta(days=1)
+
+    semanas = [
+        {'numero': numero, **_stats_periodo_exato(me.id, 'semanal', inicio, fim)}
+        for numero, inicio, fim in _semanas_do_mes(referencia)
+    ]
+
+    inicio_q1, fim_q1 = get_periodo('quinzenal', primeiro_dia_mes)
+    inicio_q2, fim_q2 = get_periodo('quinzenal', primeiro_dia_mes.replace(day=16))
+    rotinas_quinzenal = Rotina.query.filter(
+        Rotina.usuario_id == me.id, Rotina.periodicidade == 'quinzenal',
+        or_(
+            and_(Rotina.periodo_inicio == inicio_q1, Rotina.periodo_fim == fim_q1),
+            and_(Rotina.periodo_inicio == inicio_q2, Rotina.periodo_fim == fim_q2),
+        ),
+    ).all()
+    quinzenal = {
+        **_stats_execucao(rotinas_quinzenal),
+        'periodo_inicio': primeiro_dia_mes.isoformat(), 'periodo_fim': ultimo_dia_mes.isoformat(),
+    }
+
+    inicio_m, fim_m = get_periodo('mensal', referencia)
+    mensal = _stats_periodo_exato(me.id, 'mensal', inicio_m, fim_m)
+
+    total_geral = sum(c['total'] for c in semanas) + quinzenal['total'] + mensal['total']
+    concluidas_geral = sum(c['concluidas'] for c in semanas) + quinzenal['concluidas'] + mensal['concluidas']
+    percentual_geral = round((concluidas_geral / total_geral * 100), 1) if total_geral else 0
+
+    diarias = None
+    if 'cd' in me.perfis_list:
+        qtd_ativ_diarias = AtividadeCatalogo.query.filter_by(
+            perfil='cd', periodicidade='diaria', ativo=True
+        ).count()
+        if qtd_ativ_diarias > 0:
+            dias_no_mes = (ultimo_dia_mes - primeiro_dia_mes).days + 1
+            total_diarias = dias_no_mes * qtd_ativ_diarias
+            concluidas_diarias = Rotina.query.join(
+                AtividadeCatalogo, Rotina.atividade_id == AtividadeCatalogo.id
+            ).filter(
+                Rotina.usuario_id == me.id,
+                AtividadeCatalogo.perfil == 'cd',
+                Rotina.periodicidade == 'diaria',
+                Rotina.periodo_inicio >= primeiro_dia_mes,
+                Rotina.periodo_inicio <= ultimo_dia_mes,
+                Rotina.status == 'concluida',
+                Rotina.status_aprovacao != 'reprovada',
+            ).count()
+            diarias = {
+                'total': total_diarias,
+                'concluidas': concluidas_diarias,
+                'percentual_execucao': round((concluidas_diarias / total_diarias * 100), 1) if total_diarias else 0,
+                'periodo_inicio': primeiro_dia_mes.isoformat(),
+                'periodo_fim': ultimo_dia_mes.isoformat(),
+            }
+
+    return jsonify({
+        'periodo_inicio': primeiro_dia_mes.isoformat(),
+        'periodo_fim': ultimo_dia_mes.isoformat(),
+        'total': total_geral,
+        'concluidas': concluidas_geral,
+        'percentual_execucao': percentual_geral,
+        'semanas': semanas,
+        'quinzenal': quinzenal,
+        'mensal': mensal,
+        'diarias': diarias,
+    })
+
+
 COLUNAS_FORMULARIO_COMERCIAL = [
     'Categoria', 'Empreendimento', 'Data Execução', 'Hora Início', 'Hora Término',
     'Objetivo', 'Resumo da Execução', 'Principais Temas',
