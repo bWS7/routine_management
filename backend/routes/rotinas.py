@@ -195,6 +195,55 @@ def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim
     return or_(base, carry) if carry is not None else base
 
 
+def _stats_execucao(rotinas):
+    """Total/concluídas/percentual de execução de uma lista de Rotina — mesma
+    definição de "concluída" usada em toda a aplicação (aprovação pendente conta
+    como cumprida; reprovada não)."""
+    total = len(rotinas)
+    concluidas = sum(1 for r in rotinas if r.status == 'concluida' and r.status_aprovacao != 'reprovada')
+    percentual = round((concluidas / total * 100), 1) if total else 0
+    return {'total': total, 'concluidas': concluidas, 'percentual_execucao': percentual}
+
+
+def _janela_anterior_em_carencia(referencia, periodicidades):
+    """Monta a condição (SQLAlchemy) do(s) período(s) imediatamente anterior(es)
+    ao que contém `referencia`, restrita às periodicidades que têm folga
+    configurada (GRACE_DAYS_BY_PERIODICIDADE) E cujo período anterior ainda está
+    dentro dessa folga hoje. Retorna (condicao, prazo_final) — ou (None, None) se
+    nenhuma periodicidade relevante estiver nessa janela agora.
+
+    Existe pra calcular o percentual do período "ainda em prazo de preenchimento"
+    separado do período atual (Fase 2) — não confundir com filtro_carry_over, que
+    filtra por status (só itens em aberto) e serve pra decidir o que continua
+    aparecendo na LISTAGEM, não pra métrica de desempenho (que precisa de todas as
+    rotinas do período anterior, concluídas ou não, pra calcular o percentual real
+    daquele período)."""
+    from sqlalchemy import or_, and_
+
+    hoje = date.today()
+    condicoes = []
+    prazo_mais_distante = None
+    for periodicidade in periodicidades:
+        grace = GRACE_DAYS_BY_PERIODICIDADE.get(periodicidade)
+        if not grace:
+            continue
+        inicio_atual, _ = get_periodo(periodicidade, referencia)
+        inicio_ant, fim_ant = get_periodo(periodicidade, inicio_atual - timedelta(days=1))
+        prazo_final = fim_ant + timedelta(days=grace)
+        if hoje > prazo_final:
+            continue
+        condicoes.append(and_(
+            Rotina.periodicidade == periodicidade,
+            Rotina.periodo_inicio == inicio_ant,
+            Rotina.periodo_fim == fim_ant,
+        ))
+        if prazo_mais_distante is None or prazo_final > prazo_mais_distante:
+            prazo_mais_distante = prazo_final
+    if not condicoes:
+        return None, None
+    return or_(*condicoes), prazo_mais_distante
+
+
 def rotina_vencida_pendente(rotina):
     prazo_limite = rotina.prazo_limite
     return (
@@ -664,16 +713,32 @@ def minha_aderencia():
             Rotina.periodicidade == periodo
         ).all()
 
-    total = len(rotinas)
-    concluidas = sum(1 for r in rotinas if r.status == 'concluida' and r.status_aprovacao != 'reprovada')
-    percentual = round((concluidas / total * 100), 1) if total else 0
+    stats = _stats_execucao(rotinas)
+
+    # Semana (ou mês) anterior ainda dentro da folga de conclusão: mostrado
+    # separado do período atual, pra não "sumir" o resultado do usuário assim que
+    # ensure_rotinas_atuais gera o período novo (ver Fase 2 do plano de rotinas).
+    periodicidades_relevantes = PERIODICIDADES if periodo == 'todas' else (periodo,)
+    cond_anterior, prazo_final = _janela_anterior_em_carencia(referencia, periodicidades_relevantes)
+    anterior = None
+    if cond_anterior is not None:
+        rotinas_anteriores = Rotina.query.filter(Rotina.usuario_id == me.id, cond_anterior).all()
+        if rotinas_anteriores:
+            inicio_ant = min(r.periodo_inicio for r in rotinas_anteriores)
+            fim_ant = max(r.periodo_fim for r in rotinas_anteriores)
+            anterior = {
+                **_stats_execucao(rotinas_anteriores),
+                'periodo_inicio': inicio_ant.isoformat(),
+                'periodo_fim': fim_ant.isoformat(),
+                'prazo_final': prazo_final.isoformat(),
+            }
+
     return jsonify({
         'periodo': periodo,
         'periodo_inicio': inicio.isoformat(),
         'periodo_fim': fim.isoformat(),
-        'total': total,
-        'concluidas': concluidas,
-        'percentual_execucao': percentual
+        **stats,
+        'anterior': anterior,
     })
 
 
@@ -966,6 +1031,33 @@ def dashboard():
 
     percentual = round((concluidas / total * 100), 1) if total > 0 else 0
 
+    # Período (semana/mês) anterior ainda dentro da folga de conclusão — mesma
+    # lógica de minha_aderencia, aplicada com a mesma visibilidade (regional/
+    # usuário) já usada acima na query principal.
+    periodicidades_relevantes = PERIODICIDADES if periodo == 'todas' else (periodo,)
+    cond_anterior, prazo_final = _janela_anterior_em_carencia(referencia, periodicidades_relevantes)
+    anterior = None
+    if cond_anterior is not None:
+        query_anterior = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.status == 'ativo', cond_anterior
+        )
+        if me.perfil == 'sr':
+            query_anterior = query_anterior.filter(Usuario.regional_id == me.regional_id)
+        elif regional_id:
+            query_anterior = query_anterior.filter(Usuario.regional_id == regional_id)
+        if usuario_id and me.perfil in ['admin', 'sr']:
+            query_anterior = query_anterior.filter(Rotina.usuario_id == usuario_id)
+        rotinas_anteriores = query_anterior.all()
+        if rotinas_anteriores:
+            inicio_ant = min(r.periodo_inicio for r in rotinas_anteriores)
+            fim_ant = max(r.periodo_fim for r in rotinas_anteriores)
+            anterior = {
+                **_stats_execucao(rotinas_anteriores),
+                'periodo_inicio': inicio_ant.isoformat(),
+                'periodo_fim': fim_ant.isoformat(),
+                'prazo_final': prazo_final.isoformat(),
+            }
+
     # Por perfil
     por_perfil = {}
     for r in rotinas:
@@ -1038,7 +1130,8 @@ def dashboard():
         'nao_iniciadas': nao_iniciadas,
         'percentual_execucao': percentual,
         'por_perfil': por_perfil,
-        'ranking': ranking
+        'ranking': ranking,
+        'anterior': anterior,
     })
 
 
