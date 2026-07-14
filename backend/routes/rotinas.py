@@ -136,36 +136,50 @@ def filtro_carry_over(model, referencia):
     return or_(*filtros) if filtros else None
 
 
-def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim_str=None, historico=False):
+def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim_str=None, historico=False, modo=None):
     """Condição (SQLAlchemy) de período usada tanto na listagem quanto na exportação
     de rotinas. Retorna None quando não há nenhuma restrição de período a aplicar
     (chamador deve pular o .filter() nesse caso).
 
-    Com data_inicio/data_fim: filtro pelo período próprio de cada rotina (seu
-    periodo_inicio e periodo_fim) contido no intervalo escolhido — não por
-    sobreposição. Contido (em vez de sobreposição) é proposital: com sobreposição,
-    uma janela curta (ex.: 01/07 a 02/07) também traria rotinas semanais/quinzenais/
-    mensais cujo período apenas toca a borda da janela (ex.: uma semanal de 29/06 a
-    05/07), inundando o resultado e escondendo as diárias que o usuário queria ver
-    (ex.: Checklist de Abertura do Stand, cujo período é o próprio dia). Mesmo
-    critério já usado no filtro de datas de Relatórios de Preenchimento.
+    `modo` ('atual' | 'historico' | 'intervalo') é o jeito explícito e preferencial
+    de escolher o comportamento — reduz a inferência implícita a partir da
+    combinação de data_inicio/data_fim/historico, que já causou um bug real de
+    semântica de datas (sobreposição vs. contido). Se omitido (compatibilidade com
+    os chamadores atuais), o modo é inferido dos parâmetros presentes, exatamente
+    como antes.
 
-    Com historico=True (sem data_inicio/data_fim): sem nenhuma restrição de período
-    — histórico completo, só filtrando por tipo de periodicidade se um tipo
-    específico foi escolhido. Usado pela aba Acompanhamento, que existe justamente
-    para revisar o histórico (não só o período corrente).
+    - intervalo (data_inicio/data_fim): filtro pelo período próprio de cada rotina
+      (seu periodo_inicio e periodo_fim) contido no intervalo escolhido — não por
+      sobreposição. Contido é proposital: com sobreposição, uma janela curta (ex.:
+      01/07 a 02/07) também traria rotinas semanais/quinzenais/mensais cujo período
+      apenas toca a borda da janela (ex.: uma semanal de 29/06 a 05/07), inundando
+      o resultado e escondendo as diárias que o usuário queria ver (ex.: Checklist
+      de Abertura do Stand, cujo período é o próprio dia). Mesmo critério já usado
+      no filtro de datas de Relatórios de Preenchimento.
 
-    Sem nenhum dos dois: comportamento original, restrito ao período atual de cada
-    periodicidade (+ folga de carry-over quando aplicável). Usado pela tela de
-    rotinas do próprio colaborador, que deve mostrar as tarefas do momento.
+    - historico: sem nenhuma restrição de período — histórico completo, só
+      filtrando por tipo de periodicidade se um tipo específico foi escolhido.
+      Usado pela aba Acompanhamento, que existe justamente para revisar o
+      histórico (não só o período corrente).
+
+    - atual: comportamento original, restrito ao período atual de cada
+      periodicidade (+ folga de carry-over quando aplicável). Usado pela tela de
+      rotinas do próprio colaborador, que deve mostrar as tarefas do momento.
 
     Isso importa porque atividades diárias (ex.: Checklist de Abertura do Stand)
-    não têm folga configurada em GRACE_DAYS_BY_PERIODICIDADE: sem historico=True
-    ou um intervalo de datas, só ficam visíveis no próprio dia em que foram
-    criadas."""
+    não têm folga configurada em GRACE_DAYS_BY_PERIODICIDADE: no modo atual, sem
+    historico/intervalo, só ficam visíveis no próprio dia em que foram criadas."""
     from sqlalchemy import or_, and_
 
-    if data_inicio_str or data_fim_str:
+    if modo is None:
+        if data_inicio_str or data_fim_str:
+            modo = 'intervalo'
+        elif historico:
+            modo = 'historico'
+        else:
+            modo = 'atual'
+
+    if modo == 'intervalo':
         condicoes = []
         if data_inicio_str:
             condicoes.append(Rotina.periodo_inicio >= date.fromisoformat(data_inicio_str))
@@ -175,7 +189,7 @@ def condicao_periodo_rotinas(periodo, referencia, data_inicio_str=None, data_fim
             condicoes.append(Rotina.periodicidade == periodo)
         return and_(*condicoes) if condicoes else None
 
-    if historico:
+    if modo == 'historico':
         return Rotina.periodicidade == periodo if periodo != 'todas' else None
 
     carry = filtro_carry_over(Rotina, referencia)
@@ -479,10 +493,11 @@ def listar():
     data_inicio = request.args.get('data_inicio')
     data_fim = request.args.get('data_fim')
     historico = request.args.get('historico', '').lower() in ('1', 'true')
+    modo = request.args.get('modo')  # 'atual' | 'historico' | 'intervalo' — opcional, ver condicao_periodo_rotinas
 
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
-    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim, historico)
+    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim, historico, modo)
     query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id)
     if cond is not None:
         query = query.filter(cond)
@@ -1038,9 +1053,10 @@ def exportar_rotinas():
     data_inicio = request.args.get('data_inicio')
     data_fim = request.args.get('data_fim')
     historico = request.args.get('historico', '').lower() in ('1', 'true')
+    modo = request.args.get('modo')  # 'atual' | 'historico' | 'intervalo' — opcional, ver condicao_periodo_rotinas
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
-    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim, historico)
+    cond = condicao_periodo_rotinas(periodo, referencia, data_inicio, data_fim, historico, modo)
     query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id)
     if cond is not None:
         query = query.filter(cond)
