@@ -545,137 +545,165 @@ function RotinaModal({ rotinaId, onClose, onSaved }) {
   );
 }
 
-// Data (YYYY-MM-DD) de hoje, no fuso local — usada como base pra navegação de período.
+// Data (YYYY-MM-DD) de hoje, no fuso local.
 function todayIso() {
   return new Date().toISOString().split('T')[0];
 }
 
-// Desloca uma data de referência aproximadamente um período pra frente/trás,
-// conforme a periodicidade selecionada — usado pelas setas "período anterior/seguinte"
-// no modo Atual. Não precisa ser exato (o backend resolve os limites reais do
-// período a partir da data), só precisa cair dentro do período vizinho certo.
-function deslocarReferencia(iso, periodo, direcao) {
+// Primeiro dia do mês anterior/seguinte ao mês que contém a data de referência
+// — usado pela navegação por mês do painel de Aderência Mensal.
+function deslocarMes(iso, direcao) {
   const d = new Date(`${iso}T00:00:00`);
-  if (periodo === 'diaria') d.setDate(d.getDate() + direcao);
-  else if (periodo === 'quinzenal') d.setDate(d.getDate() + direcao * 15);
-  else if (periodo === 'mensal') d.setMonth(d.getMonth() + direcao);
-  else d.setDate(d.getDate() + direcao * 7); // semanal ou todas
+  d.setDate(1);
+  d.setMonth(d.getMonth() + direcao);
   return d.toISOString().split('T')[0];
 }
 
-// Início e fim exatos do período que contém a data de referência, conforme a
-// periodicidade — mesma lógica de get_periodo() no backend. Usado pra mostrar
-// qual período está sendo visto (o rótulo ao lado das setas) e pra saber até
-// onde a navegação pode ir sem passar do intervalo com atividade.
-function limitesPeriodo(iso, periodo) {
-  const d = new Date(`${iso}T00:00:00`);
-  const toIso = dt => dt.toISOString().split('T')[0];
-  let inicio, fim;
-  if (periodo === 'diaria') {
-    inicio = new Date(d);
-    fim = new Date(d);
-  } else if (periodo === 'quinzenal') {
-    if (d.getDate() <= 15) {
-      inicio = new Date(d.getFullYear(), d.getMonth(), 1);
-      fim = new Date(d.getFullYear(), d.getMonth(), 15);
-    } else {
-      inicio = new Date(d.getFullYear(), d.getMonth(), 16);
-      fim = new Date(d.getFullYear(), d.getMonth() + 1, 0); // último dia do mês
-    }
-  } else if (periodo === 'mensal') {
-    inicio = new Date(d.getFullYear(), d.getMonth(), 1);
-    fim = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  } else {
-    // semanal ou todas: semana de segunda a domingo
-    const diasDesdeSegunda = (d.getDay() + 6) % 7;
-    inicio = new Date(d);
-    inicio.setDate(d.getDate() - diasDesdeSegunda);
-    fim = new Date(inicio);
-    fim.setDate(inicio.getDate() + 6);
-  }
-  return { inicio: toIso(inicio), fim: toIso(fim) };
+// 'YYYY-MM' a partir de 'YYYY-MM-DD' — comparável como string (lexicográfico =
+// cronológico), usado pra saber até onde a navegação por mês pode ir.
+function mesDe(iso) {
+  return iso.slice(0, 7);
+}
+
+const TIPO_LABELS = { semanal: 'Semana', quinzenal: 'Quinzenais', mensal: 'Mensais', diaria: 'Atividades Diárias' };
+
+function CategoriaCard({ titulo, subtitulo, stats, selecionada, onClick }) {
+  const pct = stats.percentual_execucao;
+  const cor = pct >= 80 ? 'bg-success' : pct >= 50 ? 'bg-warning' : pct > 0 ? 'bg-error' : 'bg-gray-200';
+  const corTexto = pct >= 80 ? 'text-success-dark' : pct >= 50 ? 'text-warning-dark' : pct > 0 ? 'text-error-dark' : 'text-gray-400';
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left bg-white rounded-xl border p-4 transition-all ${
+        selecionada ? 'border-primary-400 ring-2 ring-primary-100' : 'border-gray-100 hover:border-gray-200'
+      }`}
+    >
+      <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+        {titulo} <span className="text-gray-400 normal-case font-normal">· {subtitulo}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <ProgressBar value={pct} color={cor} className="flex-1" />
+        <span className={`text-sm font-bold shrink-0 w-12 text-right ${corTexto}`}>{pct}%</span>
+      </div>
+      <div className="text-xs text-gray-400 mt-1.5">{stats.concluidas} de {stats.total} atividades</div>
+    </button>
+  );
 }
 
 // ─── Rotinas Page ─────────────────────────────────────────────
 export default function RotinasPage() {
   const { currentUser } = useAuth();
+  const [statusFilter, setStatusFilter] = useState('');
+  const [openId, setOpenId] = useState(null);
+  // modo 'atual': painel de Aderência Mensal (semanas fixas do calendário +
+  // quinzenal + mensal, e Atividades Diárias pro perfil Coordenador), com
+  // drill-down pra lista de atividades da categoria clicada. modo 'historico':
+  // lista livre com filtro de intervalo de datas — pra ver períodos já fechados.
+  const [modo, setModo] = useState('atual');
+
+  // --- Modo Atual ---
+  const [mesRef, setMesRef] = useState(''); // vazio = mês corrente
+  const [mensal, setMensal] = useState(null);
+  const [loadingMensal, setLoadingMensal] = useState(true);
+  const [categoria, setCategoria] = useState(null); // {tipo, numero?, periodo_inicio, periodo_fim}
+  const [rotinasCategoria, setRotinasCategoria] = useState([]);
+  const [loadingCategoria, setLoadingCategoria] = useState(false);
+
+  // --- Modo Histórico ---
   const [rotinas, setRotinas] = useState([]);
-  const [aderencia, setAderencia] = useState(null);
   const [tendencia, setTendencia] = useState([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState('todas');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [openId, setOpenId] = useState(null);
-  // modo 'atual': lista do período corrente (comportamento de sempre), navegável
-  // por data_ref. modo 'historico': sem restrição de período, com filtro de
-  // intervalo de datas opcional — pra ver semanas já fechadas/concluídas.
-  const [modo, setModo] = useState('atual');
-  const [dataRef, setDataRef] = useState(''); // vazio = hoje (não força data_ref na URL)
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
-  // Intervalo (primeira/última data) onde o usuário realmente tem atividade —
-  // usado pra não deixar navegar (setas) pra períodos vazios, pra frente ou pra trás.
-  const [limites, setLimites] = useState(null);
 
+  // Intervalo (primeiro/último mês) onde o usuário tem atividade — limita a
+  // navegação por mês do painel Atual, pra frente e pra trás.
+  const [limites, setLimites] = useState(null);
   useEffect(() => {
     apiFetch('/api/rotinas/minha-aderencia/limites').then(r => { if (r?.ok) setLimites(r.data); });
   }, []);
 
+  const loadMensal = useCallback(async () => {
+    setLoadingMensal(true);
+    let url = '/api/rotinas/minha-aderencia/mensal';
+    if (mesRef) url += `?data_ref=${mesRef}`;
+    const r = await apiFetch(url);
+    if (r?.ok) {
+      setMensal(r.data);
+      // Abre automaticamente na semana vigente (se o mês visto for o atual);
+      // senão, na Semana 1 do mês visto.
+      const hoje = todayIso();
+      const semanaVigente = r.data.semanas.find(s => hoje >= s.periodo_inicio && hoje <= s.periodo_fim);
+      const alvo = semanaVigente || r.data.semanas[0];
+      setCategoria({ tipo: 'semanal', numero: alvo.numero, periodo_inicio: alvo.periodo_inicio, periodo_fim: alvo.periodo_fim });
+    }
+    setLoadingMensal(false);
+  }, [mesRef]);
+
+  useEffect(() => { if (modo === 'atual') loadMensal(); }, [modo, loadMensal]);
+
+  const loadCategoria = useCallback(async () => {
+    if (!categoria) return;
+    setLoadingCategoria(true);
+    let url = `/api/rotinas/?periodo=${categoria.tipo}&data_inicio=${categoria.periodo_inicio}&data_fim=${categoria.periodo_fim}&usuario_id=${currentUser.id}`;
+    if (statusFilter) url += `&status=${statusFilter}`;
+    const r = await apiFetch(url);
+    if (r?.ok) setRotinasCategoria(r.data);
+    setLoadingCategoria(false);
+  }, [categoria, statusFilter, currentUser]);
+
+  useEffect(() => { if (modo === 'atual') loadCategoria(); }, [modo, loadCategoria]);
+
   const load = useCallback(async () => {
     setLoading(true);
-    let url = `/api/rotinas/?periodo=${periodo}&usuario_id=${currentUser.id}`;
+    let url = `/api/rotinas/?periodo=${periodo}&usuario_id=${currentUser.id}&historico=1`;
     if (statusFilter) url += `&status=${statusFilter}`;
-    let adhUrl = `/api/rotinas/minha-aderencia?periodo=${periodo}`;
-    if (modo === 'historico') {
-      url += '&historico=1';
-      if (dataInicio) url += `&data_inicio=${dataInicio}`;
-      if (dataFim) url += `&data_fim=${dataFim}`;
-    } else if (dataRef) {
-      url += `&data_ref=${dataRef}`;
-      adhUrl += `&data_ref=${dataRef}`;
-    }
-    const [r, adh, tend] = await Promise.all([
+    if (dataInicio) url += `&data_inicio=${dataInicio}`;
+    if (dataFim) url += `&data_fim=${dataFim}`;
+    const [r, tend] = await Promise.all([
       apiFetch(url),
-      // Aderência só faz sentido pro período corrente (mesmo que navegado) —
-      // no modo Histórico o intervalo pode abranger várias semanas, sem um
-      // "período" único pra calcular percentual.
-      modo === 'atual' ? apiFetch(adhUrl) : Promise.resolve(null),
-      // Tendência (fechamentos já persistidos) só aparece no modo Histórico.
-      modo === 'historico' ? apiFetch('/api/rotinas/minha-aderencia/historico?periodicidade=semanal') : Promise.resolve(null),
+      apiFetch('/api/rotinas/minha-aderencia/historico?periodicidade=semanal'),
     ]);
     if (r?.ok) setRotinas(r.data);
-    if (modo === 'atual' && adh?.ok) setAderencia(adh.data);
-    else if (modo === 'historico') setAderencia(null);
-    if (modo === 'historico' && tend?.ok) setTendencia(tend.data);
+    if (tend?.ok) setTendencia(tend.data);
     setLoading(false);
-  }, [periodo, statusFilter, currentUser, modo, dataRef, dataInicio, dataFim]);
+  }, [periodo, statusFilter, currentUser, dataInicio, dataFim]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (modo === 'historico') load(); }, [modo, load]);
+
+  const refresh = () => { if (modo === 'atual') { loadMensal(); loadCategoria(); } else { load(); } };
 
   const exportar = () => {
-    let url = `/api/rotinas/export?periodo=${periodo}`;
-    if (statusFilter) url += `&status=${statusFilter}`;
-    if (modo === 'historico') {
-      url += '&historico=1';
+    let url = '/api/rotinas/export?';
+    if (modo === 'atual' && categoria) {
+      url += `periodo=${categoria.tipo}&data_inicio=${categoria.periodo_inicio}&data_fim=${categoria.periodo_fim}`;
+    } else {
+      url += `periodo=${periodo}&historico=1`;
       if (dataInicio) url += `&data_inicio=${dataInicio}`;
       if (dataFim) url += `&data_fim=${dataFim}`;
-    } else if (dataRef) {
-      url += `&data_ref=${dataRef}`;
     }
-    downloadExport(url, `rotinas_${periodo}.csv`).catch(() => {});
+    if (statusFilter) url += `&status=${statusFilter}`;
+    downloadExport(url, `rotinas_${modo}.csv`).catch(() => {});
   };
+
+  const mesVisto = mesDe(mesRef || todayIso());
+  const podeVoltarMes = !limites?.primeira_data || mesVisto > mesDe(limites.primeira_data);
+  const podeAvancarMes = !limites?.ultima_data || mesVisto < mesDe(limites.ultima_data);
 
   return (
     <div className="space-y-5">
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={periodo} onChange={e => setPeriodo(e.target.value)} className="w-36">
-          <option value="todas">Todas</option>
-          <option value="diaria">Diaria</option>
-          <option value="semanal">Semanal</option>
-          <option value="quinzenal">Quinzenal</option>
-          <option value="mensal">Mensal</option>
-        </Select>
+        {modo === 'historico' && (
+          <Select value={periodo} onChange={e => setPeriodo(e.target.value)} className="w-36">
+            <option value="todas">Todas</option>
+            <option value="diaria">Diaria</option>
+            <option value="semanal">Semanal</option>
+            <option value="quinzenal">Quinzenal</option>
+            <option value="mensal">Mensal</option>
+          </Select>
+        )}
         <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-44">
           <option value="">Todos os Status</option>
           <option value="nao_iniciada">Nao Iniciada</option>
@@ -699,37 +727,7 @@ export default function RotinasPage() {
           </button>
         </div>
 
-        {modo === 'atual' ? (() => {
-          const janela = limitesPeriodo(dataRef || todayIso(), periodo);
-          const podeVoltar = !limites?.primeira_data || janela.inicio > limites.primeira_data;
-          const podeAvancar = !limites?.ultima_data || janela.fim < limites.ultima_data;
-          return (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => podeVoltar && setDataRef(deslocarReferencia(dataRef || todayIso(), periodo, -1))}
-                disabled={!podeVoltar}
-                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
-                title={podeVoltar ? 'Período anterior' : 'Não há atividade antes deste período'}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="text-xs font-medium text-gray-600 whitespace-nowrap px-1">
-                {fmtDate(janela.inicio)} → {fmtDate(janela.fim)}
-              </span>
-              {dataRef && (
-                <Button variant="secondary" size="xs" onClick={() => setDataRef('')}>Hoje</Button>
-              )}
-              <button
-                onClick={() => podeAvancar && setDataRef(deslocarReferencia(dataRef || todayIso(), periodo, 1))}
-                disabled={!podeAvancar}
-                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
-                title={podeAvancar ? 'Próximo período' : 'Não há atividade depois deste período'}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          );
-        })() : (
+        {modo === 'historico' && (
           <>
             <Input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} className="w-40" title="Data início" />
             <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} className="w-40" title="Data fim" />
@@ -739,78 +737,145 @@ export default function RotinasPage() {
         <Button variant="secondary" icon={Download} onClick={exportar} className="ml-auto">Exportar CSV</Button>
       </div>
 
-      {/* Adherence card */}
-      {aderencia && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Aderência Pessoal</p>
-              <p className={`text-3xl font-bold mt-1 ${aderencia.percentual_execucao >= 80 ? 'text-success-dark' : aderencia.percentual_execucao >= 50 ? 'text-warning-dark' : 'text-error-dark'}`}>
-                {aderencia.percentual_execucao}%
-              </p>
-            </div>
-            <div className="text-right text-sm text-gray-500">
-              {aderencia.concluidas} de {aderencia.total} atividades<br />
-              <span className="text-xs">
-                {dataRef ? `período ${fmtDate(aderencia.periodo_inicio)} → ${fmtDate(aderencia.periodo_fim)}` : 'concluídas no período'}
-              </span>
-            </div>
-          </div>
-          <ProgressBar value={aderencia.percentual_execucao}
-            color={aderencia.percentual_execucao >= 80 ? 'bg-success' : aderencia.percentual_execucao >= 50 ? 'bg-warning' : 'bg-error'} />
+      {modo === 'atual' ? (
+        <>
+          {/* Aderência Pessoal Mensal */}
+          {loadingMensal || !mensal ? (
+            <PageSpinner />
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Aderência Pessoal Mensal</p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => podeVoltarMes && setMesRef(deslocarMes(mesRef || todayIso(), -1))}
+                    disabled={!podeVoltarMes}
+                    className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+                    title={podeVoltarMes ? 'Mês anterior' : 'Não há atividade antes deste mês'}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">{fmtDate(mensal.periodo_inicio)} → {fmtDate(mensal.periodo_fim)}</span>
+                  {mesRef && <Button variant="secondary" size="xs" onClick={() => setMesRef('')}>Hoje</Button>}
+                  <button
+                    onClick={() => podeAvancarMes && setMesRef(deslocarMes(mesRef || todayIso(), 1))}
+                    disabled={!podeAvancarMes}
+                    className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+                    title={podeAvancarMes ? 'Próximo mês' : 'Não há atividade depois deste mês'}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
 
-          {/* Período anterior ainda dentro do prazo de tolerância — mostrado
-              separado pra não sumir assim que o período novo é gerado. */}
-          {aderencia.anterior && (
-            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-sm">
-              <span className="text-gray-500">
-                Período anterior <span className="text-gray-400">(prazo até {fmtDate(aderencia.anterior.prazo_final)})</span>
-              </span>
-              <span className={`font-semibold ${
-                aderencia.anterior.percentual_execucao >= 80 ? 'text-success-dark' :
-                aderencia.anterior.percentual_execucao >= 50 ? 'text-warning-dark' : 'text-error-dark'
-              }`}>
-                {aderencia.anterior.percentual_execucao}% ({aderencia.anterior.concluidas} de {aderencia.anterior.total})
-              </span>
+              <div className="flex items-center gap-4">
+                <p className={`text-3xl font-bold shrink-0 ${
+                  mensal.percentual_execucao >= 80 ? 'text-success-dark' : mensal.percentual_execucao >= 50 ? 'text-warning-dark' : 'text-error-dark'
+                }`}>
+                  {mensal.percentual_execucao}%
+                </p>
+                <ProgressBar value={mensal.percentual_execucao}
+                  color={mensal.percentual_execucao >= 80 ? 'bg-success' : mensal.percentual_execucao >= 50 ? 'bg-warning' : 'bg-error'}
+                  className="flex-1" />
+              </div>
+              <p className="text-xs text-gray-400 mt-1 text-right">{mensal.concluidas} de {mensal.total} atividades mensais</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                {mensal.semanas.map(s => (
+                  <CategoriaCard key={s.numero}
+                    titulo={`Semana ${s.numero}`}
+                    subtitulo={`${fmtDate(s.periodo_inicio)} a ${fmtDate(s.periodo_fim)}`}
+                    stats={s}
+                    selecionada={categoria?.tipo === 'semanal' && categoria?.numero === s.numero}
+                    onClick={() => setCategoria({ tipo: 'semanal', numero: s.numero, periodo_inicio: s.periodo_inicio, periodo_fim: s.periodo_fim })}
+                  />
+                ))}
+                <CategoriaCard
+                  titulo="Quinzenais" subtitulo="1ª e 2ª quinzena"
+                  stats={mensal.quinzenal}
+                  selecionada={categoria?.tipo === 'quinzenal'}
+                  onClick={() => setCategoria({ tipo: 'quinzenal', periodo_inicio: mensal.quinzenal.periodo_inicio, periodo_fim: mensal.quinzenal.periodo_fim })}
+                />
+                <CategoriaCard
+                  titulo="Mensais" subtitulo={`${fmtDate(mensal.mensal.periodo_inicio)} a ${fmtDate(mensal.mensal.periodo_fim)}`}
+                  stats={mensal.mensal}
+                  selecionada={categoria?.tipo === 'mensal'}
+                  onClick={() => setCategoria({ tipo: 'mensal', periodo_inicio: mensal.mensal.periodo_inicio, periodo_fim: mensal.mensal.periodo_fim })}
+                />
+              </div>
+
+              {/* Atividades Diárias — só pra quem tem o perfil Coordenador, fora da soma principal */}
+              {mensal.diarias && (
+                <div className="mt-3">
+                  <CategoriaCard
+                    titulo="Atividades Diárias" subtitulo={`${fmtDate(mensal.diarias.periodo_inicio)} a ${fmtDate(mensal.diarias.periodo_fim)}`}
+                    stats={mensal.diarias}
+                    selecionada={categoria?.tipo === 'diaria'}
+                    onClick={() => setCategoria({ tipo: 'diaria', periodo_inicio: mensal.diarias.periodo_inicio, periodo_fim: mensal.diarias.periodo_fim })}
+                  />
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Tendência de aderência (semanas já fechadas) — só no modo Histórico */}
-      {modo === 'historico' && tendencia.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Tendência de Aderência (últimas semanas fechadas)</p>
-          <div className="flex items-end gap-2 h-24">
-            {tendencia.map(f => (
-              <div key={f.id} className="flex-1 h-full flex flex-col justify-end items-center gap-1">
-                <span className="text-[10px] font-semibold text-gray-600">{f.percentual_execucao}%</span>
-                <div
-                  className={`w-full rounded-t ${f.percentual_execucao >= 80 ? 'bg-success' : f.percentual_execucao >= 50 ? 'bg-warning' : 'bg-error'}`}
-                  style={{ height: `${Math.max(f.percentual_execucao, 4)}%` }}
-                  title={`${fmtDate(f.periodo_inicio)} → ${fmtDate(f.periodo_fim)}: ${f.concluidas} de ${f.total} (${f.percentual_execucao}%)`}
-                />
-                <span className="text-[10px] text-gray-400">{fmtDate(f.periodo_inicio)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Cards */}
-      {loading ? (
-        <PageSpinner />
-      ) : rotinas.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="Nenhuma rotina encontrada" description="Não há atividades para o período e filtros selecionados." />
+          {/* Lista de atividades da categoria selecionada */}
+          {categoria && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                {categoria.tipo === 'semanal' ? `Semana ${categoria.numero}` : TIPO_LABELS[categoria.tipo]}
+                <span className="text-gray-400 font-normal ml-2 text-xs">{fmtDate(categoria.periodo_inicio)} → {fmtDate(categoria.periodo_fim)}</span>
+              </h3>
+              {loadingCategoria ? (
+                <PageSpinner />
+              ) : rotinasCategoria.length === 0 ? (
+                <EmptyState icon={ClipboardList} title="Nenhuma rotina encontrada" description="Não há atividades para este período e filtros selecionados." />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {rotinasCategoria.map(r => (
+                    <RotinaCard key={r.id} rotina={r} onClick={() => setOpenId(r.id)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {rotinas.map(r => (
-            <RotinaCard key={r.id} rotina={r} onClick={() => setOpenId(r.id)} />
-          ))}
-        </div>
+        <>
+          {/* Tendência de aderência (semanas já fechadas) */}
+          {tendencia.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-card p-5">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Tendência de Aderência (últimas semanas fechadas)</p>
+              <div className="flex items-end gap-2 h-24">
+                {tendencia.map(f => (
+                  <div key={f.id} className="flex-1 h-full flex flex-col justify-end items-center gap-1">
+                    <span className="text-[10px] font-semibold text-gray-600">{f.percentual_execucao}%</span>
+                    <div
+                      className={`w-full rounded-t ${f.percentual_execucao >= 80 ? 'bg-success' : f.percentual_execucao >= 50 ? 'bg-warning' : 'bg-error'}`}
+                      style={{ height: `${Math.max(f.percentual_execucao, 4)}%` }}
+                      title={`${fmtDate(f.periodo_inicio)} → ${fmtDate(f.periodo_fim)}: ${f.concluidas} de ${f.total} (${f.percentual_execucao}%)`}
+                    />
+                    <span className="text-[10px] text-gray-400">{fmtDate(f.periodo_inicio)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {loading ? (
+            <PageSpinner />
+          ) : rotinas.length === 0 ? (
+            <EmptyState icon={ClipboardList} title="Nenhuma rotina encontrada" description="Não há atividades para o período e filtros selecionados." />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {rotinas.map(r => (
+                <RotinaCard key={r.id} rotina={r} onClick={() => setOpenId(r.id)} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      <RotinaModal rotinaId={openId} onClose={() => setOpenId(null)} onSaved={load} />
+      <RotinaModal rotinaId={openId} onClose={() => setOpenId(null)} onSaved={refresh} />
     </div>
   );
 }
