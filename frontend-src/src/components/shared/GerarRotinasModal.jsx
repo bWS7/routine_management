@@ -77,7 +77,9 @@ export default function GerarRotinasModal({ open, onClose, onGenerated }) {
             <option value="mensal">Apenas Mensais</option>
           </Select>
           <p className="text-xs text-gray-400">
-            O sistema criará as rotinas para o período atual com base no catálogo de atividades.
+            {periodicidade === 'todas'
+              ? 'O sistema criará as rotinas do mês inteiro (semanas, quinzenas, mês e dias) com base no catálogo de atividades.'
+              : 'O sistema criará as rotinas para o período atual dessa periodicidade, com base no catálogo de atividades.'}
           </p>
         </div>
 

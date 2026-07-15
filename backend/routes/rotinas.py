@@ -454,7 +454,12 @@ def gerar_rotinas():
     periodicidade_filtro = data.get('periodicidade') # 'diaria', 'semanal', 'quinzenal', 'mensal' ou None
     referencia = date.fromisoformat(referencia_str) if referencia_str else date.today()
 
-    criadas = _gerar_rotinas_para_usuarios(usuario_ids, referencia, periodicidade_filtro)
+    if not periodicidade_filtro or periodicidade_filtro == 'todas':
+        # "Todas" gera o mês inteiro (semanas/quinzenas/mês/dias), não só o
+        # período atual — mesma geração usada em "Minhas Rotinas".
+        criadas = _gerar_mes_para_usuarios(usuario_ids, referencia)
+    else:
+        criadas = _gerar_rotinas_para_usuarios(usuario_ids, referencia, periodicidade_filtro)
     return jsonify({'mensagem': f'{criadas} rotinas geradas com sucesso', 'total': criadas})
 
 
@@ -467,14 +472,16 @@ def gerar_e_fechar_automatico():
     pode expirar/ser revogado.
 
     Cobre, pra todos os usuários ativos e independente de login: geração das
-    rotinas do período atual, marcação automática de vencidas como não
-    realizadas, e fechamento dos períodos cuja folga já expirou (Fase 3) — hoje
-    essas três coisas só acontecem quando o próprio usuário acessa o app."""
+    rotinas do mês inteiro (semanas/quinzenas/mês/dias — não só o período
+    atual, pra que os dashboards de admin/superintendente reflitam o mês
+    completo mesmo pra quem não abriu "Minhas Rotinas" ainda), marcação
+    automática de vencidas como não realizadas, e fechamento dos períodos cuja
+    folga já expirou (Fase 3)."""
     secret = os.environ.get('CRON_SECRET')
     if not secret or request.headers.get('X-Cron-Secret') != secret:
         return jsonify({'erro': 'Acesso negado'}), 403
 
-    criadas = _gerar_rotinas_para_usuarios()
+    criadas = _gerar_mes_para_usuarios()
 
     rotinas_abertas = Rotina.query.filter(Rotina.status.in_(['nao_iniciada', 'em_andamento'])).all()
     marcar_vencidas_nao_realizadas(rotinas_abertas)
@@ -589,6 +596,25 @@ def ensure_rotinas_mes(usuario, referencia=None):
                 criadas += 1
     if criadas:
         db.session.commit()
+    return criadas
+
+
+def _gerar_mes_para_usuarios(usuario_ids=None, referencia=None):
+    """Mesma ideia de _gerar_rotinas_para_usuarios, mas gera o mês inteiro (via
+    ensure_rotinas_mes) pra cada usuário ativo, em vez de só o período atual.
+    Usada pelo cron diário e pelo endpoint administrativo /gerar — sem isso, o
+    mês inteiro só era pré-gerado quando o próprio usuário abria "Minhas
+    Rotinas" (ensure_rotinas_mes chamado em minha_aderencia_mensal), então um
+    colaborador que não tivesse logado ainda não aparecia com o mês completo
+    pros dashboards de admin/superintendente."""
+    query = Usuario.query.filter_by(status='ativo')
+    if usuario_ids and isinstance(usuario_ids, list) and len(usuario_ids) > 0:
+        query = query.filter(Usuario.id.in_(usuario_ids))
+    usuarios = query.all()
+
+    criadas = 0
+    for usuario in usuarios:
+        criadas += ensure_rotinas_mes(usuario, referencia)
     return criadas
 
 
