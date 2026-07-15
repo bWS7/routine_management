@@ -1416,6 +1416,79 @@ def exportar_rotinas():
     )
 
 
+def _aplicar_filtros_dashboard(query, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro):
+    """Filtros de visibilidade/segmentação comuns ao dashboard admin/superintendente
+    — reaproveitado pela query principal, pelo período anterior em carência e pela
+    segregação por semana/quinzena/mês, pra manter os mesmos filtros aplicados de
+    forma consistente em todo o dashboard. `perfil_filtro` filtra pelo perfil-alvo
+    da ATIVIDADE (mesma semântica já usada em "Execução por Perfil"), não pelo
+    perfil do colaborador — assim continua combinável com `usuario_id` (que filtra
+    o colaborador em si) sem os dois filtros se confundirem."""
+    if me.perfil == 'sr':
+        query = query.filter(Usuario.regional_id == me.regional_id)
+    elif regional_id:
+        query = query.filter(Usuario.regional_id == regional_id)
+    if usuario_id and me.perfil in ['admin', 'sr']:
+        query = query.filter(Rotina.usuario_id == usuario_id)
+    if perfil_filtro:
+        query = query.join(AtividadeCatalogo, Rotina.atividade_id == AtividadeCatalogo.id).filter(
+            AtividadeCatalogo.perfil == perfil_filtro
+        )
+    if atividade_id_filtro:
+        query = query.filter(Rotina.atividade_id == atividade_id_filtro)
+    return query
+
+
+def _semanas_time(referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro):
+    """Execução por semana de calendário (Semana 1 a 4) somada entre todos os
+    colaboradores que passam pelos filtros do dashboard — mesma ideia de
+    `minha_aderencia_mensal`, mas agregada pro time em vez de um usuário só."""
+    semanas = []
+    for numero, inicio, fim in _semanas_do_mes(referencia):
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.status == 'ativo', Rotina.periodicidade == 'semanal',
+            Rotina.periodo_inicio == inicio, Rotina.periodo_fim == fim,
+        )
+        query = _aplicar_filtros_dashboard(query, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
+        semanas.append({
+            'numero': numero, **_stats_execucao(query.all()),
+            'periodo_inicio': inicio.isoformat(), 'periodo_fim': fim.isoformat(),
+        })
+    return semanas
+
+
+def _periodo_time(periodicidade, referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro):
+    """Execução de um período exato (quinzenal combinado ou mensal) somada entre
+    todos os colaboradores filtrados — mesmo espírito de _semanas_time."""
+    from sqlalchemy import or_, and_
+
+    if periodicidade == 'quinzenal':
+        primeiro_dia_mes = referencia.replace(day=1)
+        ultimo_dia_mes = (primeiro_dia_mes + relativedelta(months=1)) - timedelta(days=1)
+        inicio_q1, fim_q1 = get_periodo('quinzenal', primeiro_dia_mes)
+        inicio_q2, fim_q2 = get_periodo('quinzenal', primeiro_dia_mes.replace(day=16))
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.status == 'ativo', Rotina.periodicidade == 'quinzenal',
+            or_(
+                and_(Rotina.periodo_inicio == inicio_q1, Rotina.periodo_fim == fim_q1),
+                and_(Rotina.periodo_inicio == inicio_q2, Rotina.periodo_fim == fim_q2),
+            ),
+        )
+        periodo_inicio, periodo_fim = primeiro_dia_mes, ultimo_dia_mes
+    else:
+        periodo_inicio, periodo_fim = get_periodo('mensal', referencia)
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.status == 'ativo', Rotina.periodicidade == 'mensal',
+            Rotina.periodo_inicio == periodo_inicio, Rotina.periodo_fim == periodo_fim,
+        )
+
+    query = _aplicar_filtros_dashboard(query, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
+    return {
+        **_stats_execucao(query.all()),
+        'periodo_inicio': periodo_inicio.isoformat(), 'periodo_fim': periodo_fim.isoformat(),
+    }
+
+
 @rotinas_bp.route('/dashboard', methods=['GET'])
 @jwt_required()
 def dashboard():
@@ -1426,6 +1499,8 @@ def dashboard():
 
     regional_id = request.args.get('regional_id', type=int)
     usuario_id = request.args.get('usuario_id', type=int)
+    perfil_filtro = request.args.get('perfil')
+    atividade_id_filtro = request.args.get('atividade_id', type=int)
     periodo = request.args.get('periodo', 'semanal')
     data_ref = request.args.get('data_ref')
 
@@ -1446,13 +1521,7 @@ def dashboard():
             Usuario.status == 'ativo'
         )
 
-    if me.perfil == 'sr':
-        query = query.filter(Usuario.regional_id == me.regional_id)
-    elif regional_id:
-        query = query.filter(Usuario.regional_id == regional_id)
-
-    if usuario_id and me.perfil in ['admin', 'sr']:
-        query = query.filter(Rotina.usuario_id == usuario_id)
+    query = _aplicar_filtros_dashboard(query, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
 
     rotinas = query.all()
     total = len(rotinas)
@@ -1473,12 +1542,9 @@ def dashboard():
         query_anterior = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
             Usuario.status == 'ativo', cond_anterior
         )
-        if me.perfil == 'sr':
-            query_anterior = query_anterior.filter(Usuario.regional_id == me.regional_id)
-        elif regional_id:
-            query_anterior = query_anterior.filter(Usuario.regional_id == regional_id)
-        if usuario_id and me.perfil in ['admin', 'sr']:
-            query_anterior = query_anterior.filter(Rotina.usuario_id == usuario_id)
+        query_anterior = _aplicar_filtros_dashboard(
+            query_anterior, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro
+        )
         rotinas_anteriores = query_anterior.all()
         if rotinas_anteriores:
             inicio_ant = min(r.periodo_inicio for r in rotinas_anteriores)
@@ -1551,6 +1617,14 @@ def dashboard():
         })
     ranking.sort(key=lambda x: x['percentual'], reverse=True)
 
+    # Segregação por semana/quinzena/mês do mês corrente (independente do
+    # seletor "periodo" acima) — mesmos filtros de visibilidade/segmentação,
+    # somados entre todos os colaboradores filtrados. Mesmo formato usado em
+    # minha_aderencia_mensal, só que agregado pro time em vez de um usuário.
+    semanas_time = _semanas_time(referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
+    quinzenal_time = _periodo_time('quinzenal', referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
+    mensal_time = _periodo_time('mensal', referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
+
     return jsonify({
         'periodo': periodo,
         'periodo_inicio': inicio.isoformat(),
@@ -1564,6 +1638,9 @@ def dashboard():
         'por_perfil': por_perfil,
         'ranking': ranking,
         'anterior': anterior,
+        'semanas': semanas_time,
+        'quinzenal': quinzenal_time,
+        'mensal': mensal_time,
     })
 
 
@@ -1576,6 +1653,8 @@ def exportar_dashboard():
 
     regional_id = request.args.get('regional_id', type=int)
     usuario_id = request.args.get('usuario_id', type=int)
+    perfil_filtro = request.args.get('perfil')
+    atividade_id_filtro = request.args.get('atividade_id', type=int)
     periodo = request.args.get('periodo', 'semanal')
     data_ref = request.args.get('data_ref')
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
@@ -1593,12 +1672,7 @@ def exportar_dashboard():
             Rotina.periodicidade == periodo,
             Usuario.status == 'ativo'
         )
-    if me.perfil == 'sr':
-        query = query.filter(Usuario.regional_id == me.regional_id)
-    elif regional_id:
-        query = query.filter(Usuario.regional_id == regional_id)
-    if usuario_id:
-        query = query.filter(Rotina.usuario_id == usuario_id)
+    query = _aplicar_filtros_dashboard(query, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
 
     rotinas = query.all()
     linhas = [[

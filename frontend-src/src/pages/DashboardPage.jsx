@@ -40,6 +40,47 @@ function PorPerfil({ por_perfil }) {
   );
 }
 
+const PERIODO_CARD_LABELS = { quinzenal: 'Quinzenais', mensal: 'Mensais' };
+
+function PeriodoCard({ titulo, subtitulo, stats }) {
+  const pct = stats?.percentual_execucao ?? 0;
+  const barColor = pct >= 80 ? 'bg-success' : pct >= 50 ? 'bg-warning' : 'bg-error';
+  const pctColor = pct >= 80 ? 'text-success-dark' : pct >= 50 ? 'text-warning-dark' : 'text-error-dark';
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-card p-4">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{titulo}</span>
+        <span className={`text-sm font-bold ${pctColor}`}>{pct}%</span>
+      </div>
+      {subtitulo && <p className="text-[11px] text-gray-400 mb-2">{subtitulo}</p>}
+      <ProgressBar value={pct} color={barColor} />
+      <p className="text-xs text-gray-400 mt-1.5">{stats?.concluidas ?? 0} de {stats?.total ?? 0} atividades</p>
+    </div>
+  );
+}
+
+function AderenciaTime({ semanas, quinzenal, mensal }) {
+  if (!semanas?.length) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Aderência da Equipe por Período</CardTitle>
+        <BarChart2 size={16} className="text-gray-400" />
+      </CardHeader>
+      <CardBody>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+          {semanas.map(s => (
+            <PeriodoCard key={s.numero} titulo={`Semana ${s.numero}`}
+              subtitulo={`${fmtDate(s.periodo_inicio)} - ${fmtDate(s.periodo_fim)}`} stats={s} />
+          ))}
+          <PeriodoCard titulo={PERIODO_CARD_LABELS.quinzenal} stats={quinzenal} />
+          <PeriodoCard titulo={PERIODO_CARD_LABELS.mensal} stats={mensal} />
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
 const MEDAL_STYLES = [
   'bg-yellow-400 text-yellow-900 ring-2 ring-yellow-300',
   'bg-gray-300 text-gray-700 ring-2 ring-gray-200',
@@ -84,16 +125,32 @@ export default function DashboardPage() {
   const [periodo, setPeriodo] = useState('todas');
   const [regionalId, setRegionalId] = useState('');
   const [regionais, setRegionais] = useState([]);
+  const [perfil, setPerfil] = useState('');
+  const [usuarioId, setUsuarioId] = useState('');
+  const [usuarios, setUsuarios] = useState([]);
+  const [atividadeId, setAtividadeId] = useState('');
+  const [atividades, setAtividades] = useState([]);
   const [showGerarModal, setShowGerarModal] = useState(false);
+
+  const podeFiltrarTime = currentUser?.perfil === 'admin' || currentUser?.perfil === 'sr';
+
+  const filtrosQuery = () => {
+    let qs = '';
+    if (regionalId) qs += `&regional_id=${regionalId}`;
+    if (perfil) qs += `&perfil=${perfil}`;
+    if (usuarioId) qs += `&usuario_id=${usuarioId}`;
+    if (atividadeId) qs += `&atividade_id=${atividadeId}`;
+    return qs;
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
-    let url = `/api/rotinas/dashboard?periodo=${periodo}`;
-    if (regionalId) url += `&regional_id=${regionalId}`;
+    const url = `/api/rotinas/dashboard?periodo=${periodo}${filtrosQuery()}`;
     const r = await apiFetch(url);
     if (r?.ok) setData(r.data);
     setLoading(false);
-  }, [periodo, regionalId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, regionalId, perfil, usuarioId, atividadeId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -104,10 +161,29 @@ export default function DashboardPage() {
     });
   }, [currentUser]);
 
+  useEffect(() => {
+    if (!podeFiltrarTime) return;
+    apiFetch('/api/usuarios/?status=ativo').then(r => {
+      if (r?.ok) setUsuarios(r.data);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [podeFiltrarTime]);
+
+  useEffect(() => {
+    if (!podeFiltrarTime) return;
+    let url = '/api/atividades/?ativo=true';
+    if (perfil) url += `&perfil=${perfil}`;
+    apiFetch(url).then(r => {
+      if (r?.ok) {
+        setAtividades(r.data);
+        setAtividadeId(prev => (prev && !r.data.some(a => String(a.id) === String(prev))) ? '' : prev);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [podeFiltrarTime, perfil]);
 
   const exportar = () => {
-    let url = `/api/rotinas/dashboard/export?periodo=${periodo}`;
-    if (regionalId) url += `&regional_id=${regionalId}`;
+    const url = `/api/rotinas/dashboard/export?periodo=${periodo}${filtrosQuery()}`;
     downloadExport(url, `dashboard_${periodo}.csv`).catch(() => toast('Erro ao exportar', 'error'));
   };
 
@@ -132,6 +208,22 @@ export default function DashboardPage() {
             <option value="">Todas Regionais</option>
             {regionais.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
           </Select>
+        )}
+        {podeFiltrarTime && (
+          <>
+            <Select value={perfil} onChange={e => setPerfil(e.target.value)} className="w-48">
+              <option value="">Todos os Perfis</option>
+              {Object.entries(PERFIL_LABELS).map(([p, label]) => <option key={p} value={p}>{label}</option>)}
+            </Select>
+            <Select value={usuarioId} onChange={e => setUsuarioId(e.target.value)} className="w-48">
+              <option value="">Todos os Usuários</option>
+              {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </Select>
+            <Select value={atividadeId} onChange={e => setAtividadeId(e.target.value)} className="w-52">
+              <option value="">Todas as Atividades</option>
+              {atividades.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </Select>
+          </>
         )}
         {data && (
           <span className="text-xs text-gray-400">
@@ -207,6 +299,11 @@ export default function DashboardPage() {
           valueColor="text-warning-dark"
         />
       </div>
+
+      {/* Segregação por semana/quinzena/mês do mês corrente — independe do
+          seletor "Período" acima, sempre reflete os filtros de perfil/usuário/
+          atividade/regional aplicados. */}
+      <AderenciaTime semanas={data?.semanas} quinzenal={data?.quinzenal} mensal={data?.mensal} />
 
       {/* Charts grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
