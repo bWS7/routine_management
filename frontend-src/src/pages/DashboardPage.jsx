@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BarChart2, CheckCircle, XCircle, Clock, RefreshCw, Download, Trophy, Users } from 'lucide-react';
+import { BarChart2, CheckCircle, XCircle, Clock, RefreshCw, Download, Trophy, Users, X } from 'lucide-react';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -40,14 +40,15 @@ function PorPerfil({ por_perfil }) {
   );
 }
 
-const PERIODO_CARD_LABELS = { quinzenal: 'Quinzenais', mensal: 'Mensais' };
-
-function PeriodoCard({ titulo, subtitulo, stats }) {
+function PeriodoCard({ titulo, subtitulo, stats, selecionada, onClick }) {
   const pct = stats?.percentual_execucao ?? 0;
   const barColor = pct >= 80 ? 'bg-success' : pct >= 50 ? 'bg-warning' : 'bg-error';
   const pctColor = pct >= 80 ? 'text-success-dark' : pct >= 50 ? 'text-warning-dark' : 'text-error-dark';
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-card p-4">
+    <button type="button" onClick={onClick}
+      className={`text-left bg-white rounded-xl border p-4 transition-colors ${
+        selecionada ? 'border-primary-400 ring-2 ring-primary-100 shadow-card' : 'border-gray-100 shadow-card hover:border-gray-200'
+      }`}>
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{titulo}</span>
         <span className={`text-sm font-bold ${pctColor}`}>{pct}%</span>
@@ -55,26 +56,35 @@ function PeriodoCard({ titulo, subtitulo, stats }) {
       {subtitulo && <p className="text-[11px] text-gray-400 mb-2">{subtitulo}</p>}
       <ProgressBar value={pct} color={barColor} />
       <p className="text-xs text-gray-400 mt-1.5">{stats?.concluidas ?? 0} de {stats?.total ?? 0} atividades</p>
-    </div>
+    </button>
   );
 }
 
-function AderenciaTime({ semanas, quinzenal, mensal }) {
+function AderenciaTime({ semanas, quinzenal, mensal, selecao, onSelecionar }) {
   if (!semanas?.length) return null;
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Aderência da Equipe por Período</CardTitle>
+        <div>
+          <CardTitle>Aderência da Equipe por Período</CardTitle>
+          <p className="text-xs text-gray-400 mt-0.5">Clique num período pra filtrar os indicadores abaixo</p>
+        </div>
         <BarChart2 size={16} className="text-gray-400" />
       </CardHeader>
       <CardBody>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
           {semanas.map(s => (
             <PeriodoCard key={s.numero} titulo={`Semana ${s.numero}`}
-              subtitulo={`${fmtDate(s.periodo_inicio)} - ${fmtDate(s.periodo_fim)}`} stats={s} />
+              subtitulo={`${fmtDate(s.periodo_inicio)} - ${fmtDate(s.periodo_fim)}`} stats={s}
+              selecionada={selecao === `semana${s.numero}`}
+              onClick={() => onSelecionar(selecao === `semana${s.numero}` ? '' : `semana${s.numero}`)} />
           ))}
-          <PeriodoCard titulo={PERIODO_CARD_LABELS.quinzenal} stats={quinzenal} />
-          <PeriodoCard titulo={PERIODO_CARD_LABELS.mensal} stats={mensal} />
+          <PeriodoCard titulo="Quinzenais" stats={quinzenal}
+            selecionada={selecao === 'quinzenal'}
+            onClick={() => onSelecionar(selecao === 'quinzenal' ? '' : 'quinzenal')} />
+          <PeriodoCard titulo="Mensais" stats={mensal}
+            selecionada={selecao === 'mensal'}
+            onClick={() => onSelecionar(selecao === 'mensal' ? '' : 'mensal')} />
         </div>
       </CardBody>
     </Card>
@@ -122,7 +132,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [periodo, setPeriodo] = useState('todas');
+  const [selecao, setSelecao] = useState('');
   const [regionalId, setRegionalId] = useState('');
   const [regionais, setRegionais] = useState([]);
   const [perfil, setPerfil] = useState('');
@@ -145,12 +155,12 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const url = `/api/rotinas/dashboard?periodo=${periodo}${filtrosQuery()}`;
+    const url = `/api/rotinas/dashboard?selecao=${selecao}${filtrosQuery()}`;
     const r = await apiFetch(url);
     if (r?.ok) setData(r.data);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo, regionalId, perfil, usuarioId, atividadeId]);
+  }, [selecao, regionalId, perfil, usuarioId, atividadeId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -183,8 +193,8 @@ export default function DashboardPage() {
   }, [podeFiltrarTime, perfil]);
 
   const exportar = () => {
-    const url = `/api/rotinas/dashboard/export?periodo=${periodo}${filtrosQuery()}`;
-    downloadExport(url, `dashboard_${periodo}.csv`).catch(() => toast('Erro ao exportar', 'error'));
+    const url = `/api/rotinas/dashboard/export?selecao=${selecao}${filtrosQuery()}`;
+    downloadExport(url, `dashboard_${selecao || 'mes'}.csv`).catch(() => toast('Erro ao exportar', 'error'));
   };
 
   if (loading) return <PageSpinner />;
@@ -192,17 +202,23 @@ export default function DashboardPage() {
   const pct = data?.percentual_execucao ?? 0;
   const pctColor = pct >= 80 ? 'text-success-dark' : pct >= 50 ? 'text-warning-dark' : 'text-error-dark';
 
+  const selecaoLabel = selecao.startsWith('semana') ? `Semana ${selecao.slice(6)}`
+    : selecao === 'quinzenal' ? 'Quinzenais'
+    : selecao === 'mensal' ? 'Mensais'
+    : 'Mês inteiro';
+
   return (
     <div className="space-y-6">
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={periodo} onChange={e => setPeriodo(e.target.value)} className="w-36">
-          <option value="todas">Todas</option>
-          <option value="diaria">Diaria</option>
-          <option value="semanal">Semanal</option>
-          <option value="quinzenal">Quinzenal</option>
-          <option value="mensal">Mensal</option>
-        </Select>
+        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-50 text-primary-700 text-sm font-medium">
+          {selecaoLabel}
+          {selecao && (
+            <button type="button" onClick={() => setSelecao('')} className="text-primary-400 hover:text-primary-600">
+              <X size={14} />
+            </button>
+          )}
+        </span>
         {currentUser?.perfil === 'admin' && regionais.length > 0 && (
           <Select value={regionalId} onChange={e => setRegionalId(e.target.value)} className="w-44">
             <option value="">Todas Regionais</option>
@@ -240,29 +256,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Período anterior ainda dentro do prazo de tolerância — mostrado separado
-          pra não sumir do dashboard assim que o período novo é gerado. */}
-      {data?.anterior && (
-        <div className="flex items-center justify-between gap-4 bg-white rounded-xl border border-gray-100 shadow-card px-5 py-3.5">
-          <div className="text-sm text-gray-600">
-            <span className="font-medium text-gray-700">Período anterior</span>{' '}
-            <span className="text-gray-400">
-              ({fmtDate(data.anterior.periodo_inicio)} → {fmtDate(data.anterior.periodo_fim)} · prazo até {fmtDate(data.anterior.prazo_final)})
-            </span>
-          </div>
-          <div className={`text-sm font-bold shrink-0 ${
-            data.anterior.percentual_execucao >= 80 ? 'text-success-dark' :
-            data.anterior.percentual_execucao >= 50 ? 'text-warning-dark' : 'text-error-dark'
-          }`}>
-            {data.anterior.percentual_execucao}% ({data.anterior.concluidas} de {data.anterior.total})
-          </div>
-        </div>
-      )}
-
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          label="Taxa de Execução"
+          label={selecao ? 'Taxa de Execução' : 'Aderência Mensal'}
           value={`${pct}%`}
           sub={`${data?.concluidas} de ${data?.total} atividades`}
           icon={BarChart2}
@@ -300,10 +297,11 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Segregação por semana/quinzena/mês do mês corrente — independe do
-          seletor "Período" acima, sempre reflete os filtros de perfil/usuário/
-          atividade/regional aplicados. */}
-      <AderenciaTime semanas={data?.semanas} quinzenal={data?.quinzenal} mensal={data?.mensal} />
+      {/* Sempre mostra o mês inteiro (independente da seleção atual) — cada
+          card é clicável e filtra os indicadores acima, o ranking e a
+          execução por perfil por aquele período específico. */}
+      <AderenciaTime semanas={data?.semanas} quinzenal={data?.quinzenal} mensal={data?.mensal}
+        selecao={selecao} onSelecionar={setSelecao} />
 
       {/* Charts grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

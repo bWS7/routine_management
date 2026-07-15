@@ -1489,6 +1489,60 @@ def _periodo_time(periodicidade, referencia, me, regional_id, usuario_id, perfil
     }
 
 
+def _query_selecao_dashboard(selecao, referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro):
+    """Resolve a seleção atual do dashboard num (rotinas, periodo_inicio,
+    periodo_fim): uma semana específica ('semana1'..'semana4'), a quinzena
+    combinada ('quinzenal'), o mês ('mensal') — ou, sem seleção (''), o mês
+    inteiro somado (semanas + quinzenal + mensal), que é o novo padrão dos
+    indicadores principais do dashboard (antes baseados só no "período atual").
+    Diárias ficam de fora da soma padrão, mesmo critério já usado em
+    minha_aderencia_mensal (o card de Atividades Diárias fica separado)."""
+    from sqlalchemy import or_, and_
+
+    primeiro_dia_mes = referencia.replace(day=1)
+    ultimo_dia_mes = (primeiro_dia_mes + relativedelta(months=1)) - timedelta(days=1)
+
+    if selecao and selecao.startswith('semana') and selecao[6:].isdigit():
+        numero = int(selecao[6:])
+        semanas = {n: (i, f) for n, i, f in _semanas_do_mes(referencia)}
+        if numero not in semanas:
+            numero = 1
+        inicio, fim = semanas[numero]
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.status == 'ativo', Rotina.periodicidade == 'semanal',
+            Rotina.periodo_inicio == inicio, Rotina.periodo_fim == fim,
+        )
+        periodo_inicio, periodo_fim = inicio, fim
+    elif selecao == 'quinzenal':
+        inicio_q1, fim_q1 = get_periodo('quinzenal', primeiro_dia_mes)
+        inicio_q2, fim_q2 = get_periodo('quinzenal', primeiro_dia_mes.replace(day=16))
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.status == 'ativo', Rotina.periodicidade == 'quinzenal',
+            or_(
+                and_(Rotina.periodo_inicio == inicio_q1, Rotina.periodo_fim == fim_q1),
+                and_(Rotina.periodo_inicio == inicio_q2, Rotina.periodo_fim == fim_q2),
+            ),
+        )
+        periodo_inicio, periodo_fim = primeiro_dia_mes, ultimo_dia_mes
+    elif selecao == 'mensal':
+        inicio_m, fim_m = get_periodo('mensal', referencia)
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.status == 'ativo', Rotina.periodicidade == 'mensal',
+            Rotina.periodo_inicio == inicio_m, Rotina.periodo_fim == fim_m,
+        )
+        periodo_inicio, periodo_fim = inicio_m, fim_m
+    else:
+        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
+            Usuario.status == 'ativo',
+            Rotina.periodicidade.in_(['semanal', 'quinzenal', 'mensal']),
+            Rotina.periodo_inicio >= primeiro_dia_mes, Rotina.periodo_fim <= ultimo_dia_mes,
+        )
+        periodo_inicio, periodo_fim = primeiro_dia_mes, ultimo_dia_mes
+
+    query = _aplicar_filtros_dashboard(query, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
+    return query.all(), periodo_inicio, periodo_fim
+
+
 @rotinas_bp.route('/dashboard', methods=['GET'])
 @jwt_required()
 def dashboard():
@@ -1501,29 +1555,14 @@ def dashboard():
     usuario_id = request.args.get('usuario_id', type=int)
     perfil_filtro = request.args.get('perfil')
     atividade_id_filtro = request.args.get('atividade_id', type=int)
-    periodo = request.args.get('periodo', 'semanal')
+    selecao = request.args.get('selecao', '')
     data_ref = request.args.get('data_ref')
 
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
-    if periodo == 'todas':
-        inicio, fim = get_periodo('mensal', referencia)
-        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            Usuario.status == 'ativo',
-            filtro_periodo_atual(Rotina, referencia)
-        )
-    else:
-        inicio, fim = get_periodo(periodo, referencia)
-        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            Rotina.periodo_inicio >= inicio,
-            Rotina.periodo_fim <= fim,
-            Rotina.periodicidade == periodo,
-            Usuario.status == 'ativo'
-        )
-
-    query = _aplicar_filtros_dashboard(query, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
-
-    rotinas = query.all()
+    rotinas, inicio, fim = _query_selecao_dashboard(
+        selecao, referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro
+    )
     total = len(rotinas)
     concluidas = sum(1 for r in rotinas if r.status == 'concluida' and r.status_aprovacao != 'reprovada')
     nao_realizadas = sum(1 for r in rotinas if r.status == 'nao_realizada')
@@ -1531,30 +1570,6 @@ def dashboard():
     nao_iniciadas = sum(1 for r in rotinas if r.status == 'nao_iniciada')
 
     percentual = round((concluidas / total * 100), 1) if total > 0 else 0
-
-    # Período (semana/mês) anterior ainda dentro da folga de conclusão — mesma
-    # lógica de minha_aderencia, aplicada com a mesma visibilidade (regional/
-    # usuário) já usada acima na query principal.
-    periodicidades_relevantes = PERIODICIDADES if periodo == 'todas' else (periodo,)
-    cond_anterior, prazo_final = _janela_anterior_em_carencia(referencia, periodicidades_relevantes)
-    anterior = None
-    if cond_anterior is not None:
-        query_anterior = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            Usuario.status == 'ativo', cond_anterior
-        )
-        query_anterior = _aplicar_filtros_dashboard(
-            query_anterior, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro
-        )
-        rotinas_anteriores = query_anterior.all()
-        if rotinas_anteriores:
-            inicio_ant = min(r.periodo_inicio for r in rotinas_anteriores)
-            fim_ant = max(r.periodo_fim for r in rotinas_anteriores)
-            anterior = {
-                **_stats_execucao(rotinas_anteriores),
-                'periodo_inicio': inicio_ant.isoformat(),
-                'periodo_fim': fim_ant.isoformat(),
-                'prazo_final': prazo_final.isoformat(),
-            }
 
     # Por perfil
     por_perfil = {}
@@ -1617,16 +1632,17 @@ def dashboard():
         })
     ranking.sort(key=lambda x: x['percentual'], reverse=True)
 
-    # Segregação por semana/quinzena/mês do mês corrente (independente do
-    # seletor "periodo" acima) — mesmos filtros de visibilidade/segmentação,
-    # somados entre todos os colaboradores filtrados. Mesmo formato usado em
-    # minha_aderencia_mensal, só que agregado pro time em vez de um usuário.
+    # Segregação por semana/quinzena/mês do mês corrente — sempre o mês
+    # inteiro, independente da seleção atual (é o que alimenta os cards
+    # clicáveis que definem `selecao`). Mesmos filtros de visibilidade/
+    # segmentação, somados entre todos os colaboradores filtrados. Mesmo
+    # formato usado em minha_aderencia_mensal, só que agregado pro time.
     semanas_time = _semanas_time(referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
     quinzenal_time = _periodo_time('quinzenal', referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
     mensal_time = _periodo_time('mensal', referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
 
     return jsonify({
-        'periodo': periodo,
+        'selecao': selecao,
         'periodo_inicio': inicio.isoformat(),
         'periodo_fim': fim.isoformat(),
         'total': total,
@@ -1637,7 +1653,6 @@ def dashboard():
         'percentual_execucao': percentual,
         'por_perfil': por_perfil,
         'ranking': ranking,
-        'anterior': anterior,
         'semanas': semanas_time,
         'quinzenal': quinzenal_time,
         'mensal': mensal_time,
@@ -1655,26 +1670,13 @@ def exportar_dashboard():
     usuario_id = request.args.get('usuario_id', type=int)
     perfil_filtro = request.args.get('perfil')
     atividade_id_filtro = request.args.get('atividade_id', type=int)
-    periodo = request.args.get('periodo', 'semanal')
+    selecao = request.args.get('selecao', '')
     data_ref = request.args.get('data_ref')
     referencia = date.fromisoformat(data_ref) if data_ref else date.today()
 
-    if periodo == 'todas':
-        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            Usuario.status == 'ativo',
-            filtro_periodo_atual(Rotina, referencia)
-        )
-    else:
-        inicio, fim = get_periodo(periodo, referencia)
-        query = Rotina.query.join(Usuario, Rotina.usuario_id == Usuario.id).filter(
-            Rotina.periodo_inicio >= inicio,
-            Rotina.periodo_fim <= fim,
-            Rotina.periodicidade == periodo,
-            Usuario.status == 'ativo'
-        )
-    query = _aplicar_filtros_dashboard(query, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro)
-
-    rotinas = query.all()
+    rotinas, _inicio, _fim = _query_selecao_dashboard(
+        selecao, referencia, me, regional_id, usuario_id, perfil_filtro, atividade_id_filtro
+    )
     linhas = [[
         r.usuario.nome if r.usuario else '',
         r.usuario.regional.nome if r.usuario and r.usuario.regional else '',
@@ -1684,7 +1686,7 @@ def exportar_dashboard():
         r.data_conclusao.isoformat() if r.data_conclusao else ''
     ] for r in rotinas]
     return _export_csv(
-        f'dashboard_{periodo}.csv',
+        f'dashboard_{selecao or "mes"}.csv',
         ['Usuario', 'Regional', 'Atividade', 'Periodicidade', 'Status', 'Conclusao'],
         linhas
     )
