@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.audit import log_audit, diff_payload
-from backend.models import Usuario, Rotina, HistoricoRotina, Evidencia, AuditLog
+from backend.models import Usuario, Rotina, HistoricoRotina, Evidencia, AuditLog, AprovacaoRotina, FechamentoPeriodo
 from backend.constants import PERFIS_USUARIO, PERFIS_COMBINAVEIS
 from backend.extensions import db
 
@@ -210,9 +210,18 @@ def deletar(uid):
         for evidencia in evidencias:
             remove_uploaded_file(evidencia.url)
 
+        AprovacaoRotina.query.filter(AprovacaoRotina.rotina_id.in_(rotina_ids)).delete(synchronize_session=False)
         Evidencia.query.filter(Evidencia.rotina_id.in_(rotina_ids)).delete(synchronize_session=False)
         HistoricoRotina.query.filter(HistoricoRotina.rotina_id.in_(rotina_ids)).delete(synchronize_session=False)
         Rotina.query.filter(Rotina.id.in_(rotina_ids)).delete(synchronize_session=False)
+
+    # Aprovações que ESTE usuário fez em rotinas de OUTRAS pessoas (aprovador_id
+    # não é anulável em AprovacaoRotina, então o registro em si é removido).
+    AprovacaoRotina.query.filter(AprovacaoRotina.aprovador_id == u.id).delete(synchronize_session=False)
+    # Rotinas de OUTRAS pessoas que este usuário aprovou: só limpa a referência
+    # (aprovador_id é anulável em Rotina), preservando o resto do registro.
+    Rotina.query.filter(Rotina.aprovador_id == u.id).update({'aprovador_id': None}, synchronize_session=False)
+    FechamentoPeriodo.query.filter(FechamentoPeriodo.usuario_id == u.id).delete(synchronize_session=False)
 
     HistoricoRotina.query.filter(HistoricoRotina.usuario_id == u.id).delete(synchronize_session=False)
     Usuario.query.filter(Usuario.supervisor_id == u.id).update({'supervisor_id': None}, synchronize_session=False)
