@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BarChart2, CheckCircle, XCircle, Clock, RefreshCw, Download, Trophy, Users, X } from 'lucide-react';
+import { BarChart2, CheckCircle, XCircle, Clock, RefreshCw, Download, Trophy, Users, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiFetch, downloadExport } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -97,32 +97,64 @@ const MEDAL_STYLES = [
   'bg-amber-600 text-white ring-2 ring-amber-500',
 ];
 
+const RANKING_PAGE_SIZE = 10;
+
 function Ranking({ ranking }) {
+  const [pagina, setPagina] = useState(1);
+
+  useEffect(() => { setPagina(1); }, [ranking]);
+
   if (!ranking?.length)
     return <p className="text-sm text-gray-400 text-center py-6">Sem dados no período</p>;
 
+  const totalPaginas = Math.max(1, Math.ceil(ranking.length / RANKING_PAGE_SIZE));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const inicio = (paginaAtual - 1) * RANKING_PAGE_SIZE;
+  const pagina_itens = ranking.slice(inicio, inicio + RANKING_PAGE_SIZE);
+
   return (
-    <div className="space-y-2">
-      {ranking.slice(0, 10).map((r, i) => {
-        const pct = r.percentual;
-        const barColor = pct >= 80 ? 'bg-success' : pct >= 50 ? 'bg-warning' : 'bg-error';
-        return (
-          <div key={r.id || i} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0
-              ${MEDAL_STYLES[i] || 'bg-gray-100 text-gray-500'}`}>
-              {i + 1}
+    <div>
+      <div className="space-y-2">
+        {pagina_itens.map((r, i) => {
+          const posicao = inicio + i;
+          const pct = r.percentual;
+          const barColor = pct >= 80 ? 'bg-success' : pct >= 50 ? 'bg-warning' : 'bg-error';
+          return (
+            <div key={r.usuario_id ?? posicao} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0
+                ${MEDAL_STYLES[posicao] || 'bg-gray-100 text-gray-500'}`}>
+                {posicao + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-800 truncate">{r.nome}</div>
+                <div className="text-xs text-gray-400 truncate">{r.regional} · {r.concluidas}/{r.total} concluídas</div>
+                <ProgressBar value={pct} color={barColor} className="mt-1" />
+              </div>
+              <div className={`text-sm font-bold shrink-0 ${pct >= 80 ? 'text-success-dark' : pct >= 50 ? 'text-warning-dark' : 'text-error-dark'}`}>
+                {pct}%
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-gray-800 truncate">{r.nome}</div>
-              <div className="text-xs text-gray-400 truncate">{r.regional} · {r.concluidas}/{r.total} concluídas</div>
-              <ProgressBar value={pct} color={barColor} className="mt-1" />
-            </div>
-            <div className={`text-sm font-bold shrink-0 ${pct >= 80 ? 'text-success-dark' : pct >= 50 ? 'text-warning-dark' : 'text-error-dark'}`}>
-              {pct}%
-            </div>
+          );
+        })}
+      </div>
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-between pt-3 mt-1 border-t border-gray-100">
+          <span className="text-xs text-gray-400">
+            {inicio + 1}–{Math.min(inicio + RANKING_PAGE_SIZE, ranking.length)} de {ranking.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={paginaAtual === 1}
+              className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent">
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-xs text-gray-500 px-1">{paginaAtual} / {totalPaginas}</span>
+            <button type="button" onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={paginaAtual === totalPaginas}
+              className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent">
+              <ChevronRight size={16} />
+            </button>
           </div>
-        );
-      })}
+        </div>
+      )}
     </div>
   );
 }
