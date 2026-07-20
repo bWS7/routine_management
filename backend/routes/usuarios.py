@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.audit import log_audit, diff_payload
-from backend.models import Usuario, Rotina, HistoricoRotina, Evidencia, AuditLog, AprovacaoRotina, FechamentoPeriodo
+from backend.models import Usuario, AuditLog
 from backend.constants import PERFIS_USUARIO, PERFIS_COMBINAVEIS
 from backend.extensions import db
 
@@ -92,6 +92,10 @@ def listar():
         query = query.filter_by(regional_id=int(regional_id))
     if status:
         query = query.filter_by(status=status)
+    else:
+        # Sem filtro explícito de status, usuários excluídos ficam de fora da
+        # listagem padrão (só aparecem com ?status=excluido, pra auditoria).
+        query = query.filter(Usuario.status != 'excluido')
 
     usuarios = query.order_by(Usuario.nome).all()
     return jsonify([u.to_dict() for u in usuarios])
@@ -191,6 +195,13 @@ def atualizar(uid):
 @usuarios_bp.route('/<int:uid>', methods=['DELETE'])
 @jwt_required()
 def deletar(uid):
+    """Exclusão suave: o usuário deixa de poder logar e some das listas
+    padrão (mesmo critério de login/geração/dashboard, que já só consideram
+    status='ativo'), mas o registro em si continua no banco — preservando
+    integralmente as rotinas dele (inclusive concluídas), evidências,
+    histórico e aprovações, que continuam visíveis em telas de histórico
+    (ex.: Acompanhamento). Diferente de 'inativo' (reversível/temporário),
+    pensado como estado permanente."""
     me = get_current_user()
     if not require_admin(me):
         return jsonify({'erro': 'Acesso negado'}), 403
@@ -198,44 +209,17 @@ def deletar(uid):
         return jsonify({'erro': 'Não é possível excluir o próprio usuário'}), 400
 
     u = Usuario.query.get_or_404(uid)
+    if u.status == 'excluido':
+        return jsonify({'erro': 'Usuário já está excluído'}), 400
 
-    rotina_ids = [
-        rotina_id for (rotina_id,) in db.session.query(Rotina.id)
-        .filter(Rotina.usuario_id == u.id)
-        .all()
-    ]
-
-    if rotina_ids:
-        evidencias = Evidencia.query.filter(Evidencia.rotina_id.in_(rotina_ids)).all()
-        for evidencia in evidencias:
-            remove_uploaded_file(evidencia.url)
-
-        AprovacaoRotina.query.filter(AprovacaoRotina.rotina_id.in_(rotina_ids)).delete(synchronize_session=False)
-        Evidencia.query.filter(Evidencia.rotina_id.in_(rotina_ids)).delete(synchronize_session=False)
-        HistoricoRotina.query.filter(HistoricoRotina.rotina_id.in_(rotina_ids)).delete(synchronize_session=False)
-        Rotina.query.filter(Rotina.id.in_(rotina_ids)).delete(synchronize_session=False)
-
-    # Aprovações que ESTE usuário fez em rotinas de OUTRAS pessoas (aprovador_id
-    # não é anulável em AprovacaoRotina, então o registro em si é removido).
-    AprovacaoRotina.query.filter(AprovacaoRotina.aprovador_id == u.id).delete(synchronize_session=False)
-    # Rotinas de OUTRAS pessoas que este usuário aprovou: só limpa a referência
-    # (aprovador_id é anulável em Rotina), preservando o resto do registro.
-    Rotina.query.filter(Rotina.aprovador_id == u.id).update({'aprovador_id': None}, synchronize_session=False)
-    FechamentoPeriodo.query.filter(FechamentoPeriodo.usuario_id == u.id).delete(synchronize_session=False)
-
-    HistoricoRotina.query.filter(HistoricoRotina.usuario_id == u.id).delete(synchronize_session=False)
-    Usuario.query.filter(Usuario.supervisor_id == u.id).update({'supervisor_id': None}, synchronize_session=False)
-    AuditLog.query.filter(AuditLog.usuario_id == u.id).update({'usuario_id': None}, synchronize_session=False)
+    status_anterior = u.status
+    u.status = 'excluido'
     remove_uploaded_file(u.foto_url)
+    u.foto_url = None
 
-    detalhes = {
-        'nome': u.nome,
-        'email': u.email,
-        'perfil': u.perfil,
-        'rotinas_removidas': len(rotina_ids),
-    }
-    log_audit(me.id, 'usuario', u.id, 'excluir', detalhes)
-    db.session.delete(u)
+    log_audit(me.id, 'usuario', u.id, 'excluir', {
+        'nome': u.nome, 'email': u.email, 'perfil': u.perfil, 'status_anterior': status_anterior,
+    })
     db.session.commit()
     return jsonify({'mensagem': 'Usuário excluído'})
 

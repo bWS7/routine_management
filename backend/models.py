@@ -73,7 +73,7 @@ class Usuario(db.Model):
     perfis = db.Column(db.Text)
     regional_id = db.Column(db.Integer, db.ForeignKey('regionais.id'), nullable=True)
     supervisor_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
-    status = db.Column(db.String(20), default='ativo')  # ativo, inativo, bloqueado
+    status = db.Column(db.String(20), default='ativo')  # ativo, inativo, bloqueado, excluido
     foto_url = db.Column(db.Text)
     criado_em = db.Column(db.DateTime, default=get_now_br)
     atualizado_em = db.Column(db.DateTime, default=get_now_br, onupdate=get_now_br)

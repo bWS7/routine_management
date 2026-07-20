@@ -18,6 +18,7 @@ const STATUS_USUARIO_COLORS = {
   ativo:     'bg-green-50 text-green-700',
   inativo:   'bg-gray-100 text-gray-600',
   bloqueado: 'bg-red-50 text-red-700',
+  excluido:  'bg-gray-200 text-gray-500',
 };
 
 // Perfis que podem ser combinados (até 3). Administrador e Superintendente são
@@ -216,7 +217,7 @@ export default function UsuariosPage() {
   };
 
   const deleteUser = async (u) => {
-    if (!confirm(`Deseja excluir definitivamente o usuário "${u.nome}"? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Excluir "${u.nome}"? Ele deixa de poder logar e some das listas de usuários ativos. As atividades e o histórico dele são preservados (continuam visíveis em Acompanhamento).`)) return;
     const r = await apiFetch(`/api/usuarios/${u.id}`, { method: 'DELETE' });
     if (r?.ok) { toast('Usuário excluído!', 'success'); load(); }
     else toast(r?.data?.erro || 'Erro', 'error');
@@ -235,6 +236,7 @@ export default function UsuariosPage() {
           <option value="ativo">Ativo</option>
           <option value="inativo">Inativo</option>
           <option value="bloqueado">Bloqueado</option>
+          <option value="excluido">Excluído</option>
         </Select>
         <Button icon={Plus} onClick={() => setModal('new')} className="ml-auto">Novo Usuário</Button>
       </div>
@@ -278,12 +280,16 @@ export default function UsuariosPage() {
                         <button onClick={() => setModal(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors" title="Editar">
                           <Edit size={15} />
                         </button>
-                        <button onClick={() => toggleStatus(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-warning hover:bg-yellow-50 transition-colors" title="Alterar status">
-                          <RefreshCw size={15} />
-                        </button>
-                        <button onClick={() => deleteUser(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-error hover:bg-red-50 transition-colors" title="Excluir usuário">
-                          <Trash2 size={15} />
-                        </button>
+                        {u.status !== 'excluido' && (
+                          <>
+                            <button onClick={() => toggleStatus(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-warning hover:bg-yellow-50 transition-colors" title="Alterar status">
+                              <RefreshCw size={15} />
+                            </button>
+                            <button onClick={() => deleteUser(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-error hover:bg-red-50 transition-colors" title="Excluir usuário">
+                              <Trash2 size={15} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </Td>
                   </Tr>
