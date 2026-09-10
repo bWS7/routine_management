@@ -1,0 +1,3 @@
+# Arquivos locais que nao devem ir para o build/deploy do Railway
+*.xlsx
+*.xls
