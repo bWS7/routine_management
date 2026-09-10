@@ -1,4 +1,5 @@
 import os
+from contextlib import contextmanager
 from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
 from sqlalchemy import inspect
@@ -137,13 +138,45 @@ def create_app():
     # Init DB and seed
     with app.app_context():
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-        db.create_all()
-        _ensure_runtime_columns()
-        reconciliar_semanas_mes_atual()
-        _seed_initial_data()
-        _seed_empreendimentos()
+        with _init_lock():
+            db.create_all()
+            _ensure_runtime_columns()
+            reconciliar_semanas_mes_atual()
+            _seed_initial_data()
+            _seed_empreendimentos()
 
     return app
+
+
+@contextmanager
+def _init_lock():
+    """Serializa a inicialização/seed do banco entre os workers do gunicorn.
+
+    `gunicorn --workers 2` sobe os workers em paralelo e cada um roda
+    create_all() + os _sync_* + seeds. Sem trava, dois workers rodando ao mesmo
+    tempo colidem (ex.: `duplicate key ... pg_type` no create_all, ou linhas de
+    catálogo duplicadas quando dois workers criam a mesma atividade antes de o
+    outro commitar). Um advisory lock do Postgres faz o segundo worker esperar
+    o primeiro terminar; quando ele assume, tudo já está feito e os _sync_*
+    (idempotentes) não mexem em nada.
+
+    Em SQLite (testes) não há advisory lock — e também não há concorrência de
+    workers —, então é um no-op."""
+    engine = db.engine
+    if engine.dialect.name != 'postgresql':
+        yield
+        return
+    # Chave arbitrária porém estável para esta aplicação.
+    chave = 728192463
+    conn = engine.connect()
+    try:
+        conn.exec_driver_sql(f'SELECT pg_advisory_lock({chave})')
+        try:
+            yield
+        finally:
+            conn.exec_driver_sql(f'SELECT pg_advisory_unlock({chave})')
+    finally:
+        conn.close()
 
 
 def _seed_empreendimentos():
@@ -381,6 +414,36 @@ def _sync_atividades_gv_cd():
     if alteradas:
         db.session.commit()
         print("[sync] Catalogo de GV/CD alinhado (revisao de perfis hibridos).")
+
+    _dedup_catalogo(('gv', 'cd'))
+
+
+def _dedup_catalogo(perfis):
+    """Remove linhas duplicadas (mesmo perfil+nome) do catálogo — cicatriz de
+    uma eventual corrida de inicialização entre workers antes do _init_lock.
+    Mantém a de menor id e só remove duplicata sem nenhuma rotina vinculada,
+    para nunca perder histórico. Idempotente."""
+    from backend.models import AtividadeCatalogo, Rotina
+
+    linhas = (
+        AtividadeCatalogo.query
+        .filter(AtividadeCatalogo.perfil.in_(tuple(perfis)))
+        .order_by(AtividadeCatalogo.perfil, AtividadeCatalogo.nome, AtividadeCatalogo.id)
+        .all()
+    )
+    vistos = set()
+    removidas = 0
+    for a in linhas:
+        chave = (a.perfil, a.nome)
+        if chave not in vistos:
+            vistos.add(chave)
+            continue
+        if not Rotina.query.filter_by(atividade_id=a.id).first():
+            db.session.delete(a)
+            removidas += 1
+    if removidas:
+        db.session.commit()
+        print(f"[sync] {removidas} atividades duplicadas removidas do catalogo.")
 
 
 def _ensure_runtime_columns():
