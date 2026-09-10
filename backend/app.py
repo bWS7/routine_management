@@ -322,6 +322,67 @@ def _sync_atividades_parcerias():
         print("[sync] Catalogo de parcerias alinhado aos 5 relatorios personalizados.")
 
 
+def _sync_atividades_gv_cd():
+    """Garante o catálogo de Gerente de Vendas (gv) e Coordenador de Produto (cd)
+    a partir do seed e alinha a nomenclatura à revisão de perfis híbridos.
+
+    - Renomeia registros antigos para o nome canônico (via `aliases`), sem criar
+      duplicata — mesmo padrão de _sync_atividades_parcerias / _superintendentes.
+    - Cria as atividades do seed que ainda não existirem (ex.: banco novo).
+    - NÃO desativa atividades "extras": gv/cd podem ter atividades criadas
+      manualmente pelo admin, que devem ser preservadas.
+    """
+    from backend.seed_data import ATIVIDADES_CATALOGO
+    from backend.models import AtividadeCatalogo
+
+    # nome canônico -> nomes anteriores que devem ser renomeados para ele
+    aliases = {
+        'Reunião de Performance com Corretores': ['Reunião Coletiva com Corretores'],
+        'Alinhamento individual com Corretores (1:1)': ['1:1 com Corretores'],
+        'Monitoramento de Rotinas da Equipe': ['Checagem de Disciplina Operacional'],
+        'Análise do Resultado Geral do Time': ['Revisão Mensal de Performance do Time'],
+        'Análise de Concorrência': ['1-Pager de Concorrência'],
+    }
+    seeds = [s for s in ATIVIDADES_CATALOGO if s.get('perfil') in ('gv', 'cd')]
+    alteradas = 0
+
+    for seed in seeds:
+        nomes_busca = [seed['nome'], *aliases.get(seed['nome'], [])]
+        atividade = (
+            AtividadeCatalogo.query
+            .filter(AtividadeCatalogo.perfil == seed['perfil'], AtividadeCatalogo.nome.in_(nomes_busca))
+            .order_by(AtividadeCatalogo.ativo.desc(), AtividadeCatalogo.id.asc())
+            .first()
+        )
+
+        if not atividade:
+            atividade = AtividadeCatalogo()
+            db.session.add(atividade)
+            alteradas += 1
+
+        # Só o `nome` é forçado para o canônico (renomeação). Periodicidade,
+        # obrigatoriedade e demais campos do catálogo permanecem como estão no
+        # banco quando a atividade já existe — mudanças de periodicidade/
+        # obrigatoriedade são decisão à parte (ver documento de revisão).
+        campos = ['nome', 'descricao', 'periodicidade', 'perfil', 'obrigatoria',
+                  'tipo_evidencia', 'indicador', 'prazo_padrao', 'ordem']
+        nova = atividade.id is None
+        for campo in campos:
+            if not nova and campo != 'nome':
+                continue
+            valor = seed.get(campo)
+            if getattr(atividade, campo, None) != valor:
+                setattr(atividade, campo, valor)
+                alteradas += 1
+        if not atividade.ativo:
+            atividade.ativo = True
+            alteradas += 1
+
+    if alteradas:
+        db.session.commit()
+        print("[sync] Catalogo de GV/CD alinhado (revisao de perfis hibridos).")
+
+
 def _ensure_runtime_columns():
     insp = inspect(db.engine)
     tabelas = set(insp.get_table_names())
@@ -378,6 +439,7 @@ def _ensure_runtime_columns():
     _sync_descricoes_catalogo()
     _sync_atividades_superintendentes()
     _sync_atividades_parcerias()
+    _sync_atividades_gv_cd()
 
     # Catálogo de atividades
 

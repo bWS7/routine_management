@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 from backend.audit import log_audit
 from backend.utils.dates import get_now_br, hoje_br
 from backend.models import Rotina, AtividadeCatalogo, Usuario, HistoricoRotina, Evidencia, AuditLog, FechamentoPeriodo, Notificacao, GRACE_DAYS_BY_PERIODICIDADE, GRACE_DAYS_REENVIO
-from backend.constants import atividade_requer_aprovacao
+from backend.constants import atividade_requer_aprovacao, nomes_atividades_perfil_hibrido
 from backend.extensions import db
 from datetime import date, timedelta, datetime, timezone
 from dateutil.relativedelta import relativedelta
@@ -510,6 +510,30 @@ def marcar_vencidas_nao_realizadas(rotinas, ator_id=None):
     return mudou
 
 
+def catalogo_do_usuario(usuario, periodicidade_filtro=None):
+    """Atividades do catálogo que valem para o usuário.
+
+    - Função ÚNICA (0 ou 1 perfil combinável): todas as atividades ativas dos
+      perfis do usuário — comportamento histórico.
+    - Função ACUMULADA (2+ perfis combináveis): apenas a lista curada de
+      ATIVIDADES_PERFIL_HIBRIDO (ver backend/constants.py). A lista não é a
+      união dos catálogos.
+
+    Filtra sempre por `perfil in perfis_list` — assim, mesmo em combinação, só
+    entram atividades que de fato pertencem a algum perfil do usuário; a lista
+    curada apenas restringe ainda mais, por nome."""
+    query = AtividadeCatalogo.query.filter(
+        AtividadeCatalogo.perfil.in_(usuario.perfis_list),
+        AtividadeCatalogo.ativo == True
+    )
+    nomes_hibrido = nomes_atividades_perfil_hibrido(usuario.perfis_list)
+    if nomes_hibrido is not None:
+        query = query.filter(AtividadeCatalogo.nome.in_(nomes_hibrido))
+    if periodicidade_filtro and periodicidade_filtro != 'todas':
+        query = query.filter(AtividadeCatalogo.periodicidade == periodicidade_filtro)
+    return query.all()
+
+
 def _gerar_rotinas_para_usuarios(usuario_ids=None, referencia=None, periodicidade_filtro=None):
     """Núcleo da geração de rotinas — reaproveitado pelo endpoint administrativo
     (/gerar, disparado manualmente por um admin) e pelo endpoint de cron
@@ -523,14 +547,7 @@ def _gerar_rotinas_para_usuarios(usuario_ids=None, referencia=None, periodicidad
 
     criadas = 0
     for usuario in usuarios:
-        cat_query = AtividadeCatalogo.query.filter(
-            AtividadeCatalogo.perfil.in_(usuario.perfis_list),
-            AtividadeCatalogo.ativo == True
-        )
-        if periodicidade_filtro and periodicidade_filtro != 'todas':
-            cat_query = cat_query.filter_by(periodicidade=periodicidade_filtro)
-
-        atividades = cat_query.all()
+        atividades = catalogo_do_usuario(usuario, periodicidade_filtro)
         for atividade in atividades:
             inicio, fim = get_periodo(atividade.periodicidade, referencia)
             existe = Rotina.query.filter_by(
@@ -615,10 +632,7 @@ def ensure_rotinas_atuais(usuario, referencia=None):
     if not usuario or not usuario.perfis_list:
         return 0
     referencia = referencia or hoje_br()
-    atividades = AtividadeCatalogo.query.filter(
-        AtividadeCatalogo.perfil.in_(usuario.perfis_list),
-        AtividadeCatalogo.ativo == True
-    ).all()
+    atividades = catalogo_do_usuario(usuario)
     criadas = 0
     for atividade in atividades:
         inicio, fim = get_periodo(atividade.periodicidade, referencia)
@@ -685,10 +699,7 @@ def ensure_rotinas_mes(usuario, referencia=None):
         'diaria': [(dia, dia) for dia in _dias_do_mes(primeiro_dia_mes, ultimo_dia_mes)],
     }
 
-    atividades = AtividadeCatalogo.query.filter(
-        AtividadeCatalogo.perfil.in_(usuario.perfis_list),
-        AtividadeCatalogo.ativo == True
-    ).all()
+    atividades = catalogo_do_usuario(usuario)
 
     criadas = 0
     for atividade in atividades:
