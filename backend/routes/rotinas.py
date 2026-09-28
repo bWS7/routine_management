@@ -624,6 +624,47 @@ def gerar_e_fechar_automatico():
     })
 
 
+def podar_rotinas_fora_do_catalogo(usuario, referencia=None):
+    """Remove rotinas do período VIGENTE ou FUTURO que ficaram "orfãs" porque
+    os perfis do usuário mudaram depois que elas foram geradas (ex.: era
+    Gerente+Coordenador — gerou as 8 atividades da combinação —, o admin editou
+    pra só Coordenador, e as atividades de Gerente ficavam grudadas na lista
+    pra sempre, porque ensure_rotinas_atuais/ensure_rotinas_mes só CRIAM o que
+    falta, nunca removem o que sobrou de uma composição de perfil anterior).
+
+    Só remove uma rotina se as DUAS condições valerem:
+    - o período dela ainda não terminou (periodo_fim >= referencia) — período
+      já fechado é histórico e nunca é mexido, mesmo que a atividade não
+      pertença mais ao perfil atual;
+    - ninguém tocou nela (`historico` vazio — toda alteração via
+      atualizar()/upload_evidencia() grava uma linha em HistoricoRotina, então
+      lista vazia = rotina intocada desde que foi criada, sem risco de apagar
+      preenchimento, evidência, comentário ou aprovação de ninguém).
+
+    Chamada junto de ensure_rotinas_atuais/ensure_rotinas_mes, sempre nesta
+    ordem: primeiro cria o que falta no catálogo atual, depois poda o que não
+    pertence mais a ele — nunca o contrário, pra não podar e recriar à toa."""
+    if not usuario or not usuario.perfis_list:
+        return 0
+    referencia = referencia or hoje_br()
+    ids_validos = {a.id for a in catalogo_do_usuario(usuario)}
+    candidatas = Rotina.query.filter(
+        Rotina.usuario_id == usuario.id,
+        Rotina.periodo_fim >= referencia,
+        Rotina.status == 'nao_iniciada',
+        ~Rotina.atividade_id.in_(ids_validos),
+    ).all()
+    removidas = 0
+    for r in candidatas:
+        if r.historico:
+            continue  # já foi mexida (comentário, evidência, status, delegação) — nunca apaga
+        db.session.delete(r)
+        removidas += 1
+    if removidas:
+        db.session.commit()
+    return removidas
+
+
 def ensure_rotinas_atuais(usuario, referencia=None):
     """Geração automática (Seção 3): cria, de forma idempotente, as rotinas do
     período atual (semanal/quinzenal/mensal/diária) para o usuário, conforme o
@@ -737,6 +778,7 @@ def _gerar_mes_para_usuarios(usuario_ids=None, referencia=None):
     criadas = 0
     for usuario in usuarios:
         criadas += ensure_rotinas_mes(usuario, referencia)
+        podar_rotinas_fora_do_catalogo(usuario, hoje_br())
     return criadas
 
 
@@ -791,6 +833,10 @@ def listar():
 
     # Geração automática das rotinas do período atual do próprio usuário (Seção 3).
     ensure_rotinas_atuais(me)
+    # Remove rotinas do período vigente/futuro que ficaram órfãs de uma
+    # composição de perfil anterior (usuário era híbrido, teve o perfil
+    # alterado, e a atividade antiga não some sozinha).
+    podar_rotinas_fora_do_catalogo(me)
     # Fecha (grava snapshot) períodos anteriores do próprio usuário cuja folga já
     # expirou, pra alimentar o histórico de aderência (Fase 3).
     fechar_periodos_pendentes(me)
@@ -1251,6 +1297,10 @@ def minha_aderencia_mensal():
     # categorias — sem isso, um período que ainda não chegou mostraria "0 de 0"
     # em vez do total real, e clicar num card futuro não acharia nada pra listar.
     ensure_rotinas_mes(me, referencia)
+    # Poda órfãs de perfil (sempre relativa a hoje de verdade — `referencia`
+    # aqui pode ser um mês passado/futuro que o usuário está só visualizando,
+    # nunca é isso que decide o que é "período vigente").
+    podar_rotinas_fora_do_catalogo(me, hoje_br())
 
     primeiro_dia_mes = referencia.replace(day=1)
     ultimo_dia_mes = (primeiro_dia_mes + relativedelta(months=1)) - timedelta(days=1)
